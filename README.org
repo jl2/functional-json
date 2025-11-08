@@ -1,0 +1,42 @@
+* functional-json
+
+** About
+This is a fork of [ST-JSON](https://marijnhaverbeke.nl/st-json/)
+
+This fork aims to be backwards compatible with ST-JSON, while adding
+utility and convenience functions for working with JSON from the REPL
+
+** Changes From ST-JSON
+
+Optional pretty printing in print-object by setting *print-object-style*
+#+begin_src lisp
+(setf fs:*print-object-style* :pretty)
+#+end_src
+
+Enhanced assessor functions
+
+#+begin_src lisp
+  (let ((foo (fs:o :foo 42
+                   :bar (fs:o :wat 45
+                              "key" 42))))
+    ;; Prints 42
+    (print (fs:at foo "foo"))
+    ;; Prints "{\"wat\": 45, \"key\": 42}"
+    (print (fs:at foo :bar))
+    (let ((fl (fs:atλ foo "bar")))
+      ;; Prints "{\"wat\": 45, \"key\": 42}"
+      (print (funcall fl))
+      ;; Prints 45
+      (print (funcall fl "wat"))))
+#+end_src
+
+
+** License
+BSD
+
+Copyright (c) 2025 Jeremiah LaRocco <jeremiah_larocco@fastmail.com>
+Copyright (c) Streamtech & Marijn Haverbeke (marijnh@gmail.com)
+
+
+* Plan
+** TODO Fill in a TODO list.
