@@ -30,12 +30,16 @@ Field names can be "strings", :keywords, or 'symbols.
 
 ** Use `fj:jsoλ` to create access functions.
 
-#+BEGIN_SRC lisp :results result
-  (ql:quickload '(:functional-json :dexador))
+#+BEGIN_SRC lisp :results output
+  (ql:quickload '(:functional-json :dexador :alexandria))
+  (use-package :alexandria)
 
-  (let ((url "https://api.github.com/repos/jl2/functional-json/contents/"))
-    (mapcar (fj:jsoλ :_links :html)
-            (fj:read-json (dex:get url)))))
+  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+         (json-list (fj:read-json (dex:get url)))
+         (html-link (fj:jsoλ :_links :html)))
+
+    ;; Print all HTML links
+    (mapc (compose #'print html-link) json-list)))
 #+END_SRC
 
 ** Use `fj:at` to access to fields.
@@ -47,9 +51,12 @@ Field names can be "strings", :keywords, or 'symbols.
          (json-list (fj:read-json (dex:get url :want-stream t)))
          (json (first json-list)))
 
+    ;; Swap fields and make modifications
     (format t "First: ~a~%" (fj:at json :_links))
+
     (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
     (format t "Swapped: ~a~%" (fj:at json :_links))
+
     (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
     (format t "Swapped back: ~a~%" (fj:at json :_links)))
 #+END_SRC
@@ -65,8 +72,12 @@ Field names can be "strings", :keywords, or 'symbols.
          (json (first json-list))
          (links (fj:atλ json :_links)))
 
-    (map nil (compose #'print links) '(:git :self :html))
+    ;; Print specified links
+    (mapc (compose #'print links) '(:git :self :html))
 
+    ;; Can't setf through (funcall links)
+    ;; but the object will see changes made with fj:with-key bindings and
+    ;; through fj:at
     (fj:with-keys ((git :git)
                    (self :self)) (funcall links)
     
@@ -87,28 +98,32 @@ Field names can be "strings", :keywords, or 'symbols.
 ** Use `fj:at` can mutate JSON
 
 #+BEGIN_SRC lisp :results output
-  (ql:quickload '(:functional-json :dexador :alexandria))
-  (use-package :alexandria)
+  (ql:quickload '(:functional-json))
 
+  ;; Start with empty object
   (let* ((json (fj:o)))
-    ;; setf-able with-keys
+
+    ;; fj:with-keys bindings are setf-able, even if they didn't exist before
     (fj:with-keys ((wat :wat)
                    (obj :obj)) json
       (setf wat 43
             obj (fj:o :t1 34)))
-    ;; at is setfable
+    
+    ;; fj:at is setfable
     (setf (fj:at json "foo") 42)
     (setf (fj:at json "bar") (fj:o :new 80
                                    :test3 90))
-    ;; setf multiple levels
+    ;; setf multiple levels of nested structure
     (setf (fj:at json "bar" "test") (fj:o :new 80
                                           :test3 90))
     (setf (fj:at json :key :field :nested) 10)
     (setf (fj:at json :key :field :other) 12)
     (setf (fj:at json :key "foo" "test") 90)
+
     (print json))
     
 #+END_SRC
+
 
 * TODO
 Right now most query functions only work with jso association lists.
