@@ -1,8 +1,0 @@
-(LET ((#:G334 OBJ))
-  (DECLARE (IGNORABLE #:G334))
-  (SYMBOL-MACROLET ((F (AT #:G334 :FOO))
-                    (A (AT #:G334 :THIRD :A))
-                    (B (AT #:G334 :THIRD :B))
-                    (C (AT #:G334 "third" "c"))
-                    (W (AT #:G334 "bar" :WAT)))
-    (IS (= (+ F A B C W) (+ 1 2 3 12 34)))))
