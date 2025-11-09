@@ -1,42 +1,120 @@
-* functional-json
+#+TITLE: About functional-json
 
-** About
-This is a fork of [ST-JSON](https://marijnhaverbeke.nl/st-json/)
+This is a fork of [[https://marijnhaverbeke.nl/st-json/][ST-JSON]] with extra utilities to streamline
+JSON processing and work with JSON from the REPL.
 
-This fork aims to be backwards compatible with ST-JSON, while adding
-utility and convenience functions for working with JSON from the REPL
+This fork aims to be backwards compatible with ST-JSON.
 
-** Changes From ST-JSON
+* Basic Usage
 
-Optional pretty printing in print-object by setting *print-object-style*
-#+begin_src lisp
-(setf fs:*print-object-style* :pretty)
-#+end_src
+** Load JSON data using `fj:read-json` and `fj:with-keys` to access fields.
 
-Enhanced assessor functions
+Field names can be "strings", :keywords, or 'symbols.
 
-#+begin_src lisp
-  (let ((foo (fs:o :foo 42
-                   :bar (fs:o :wat 45
-                              "key" 42))))
-    ;; Prints 42
-    (print (fs:at foo "foo"))
-    ;; Prints "{\"wat\": 45, \"key\": 42}"
-    (print (fs:at foo :bar))
-    (let ((fl (fs:atλ foo "bar")))
-      ;; Prints "{\"wat\": 45, \"key\": 42}"
-      (print (funcall fl))
-      ;; Prints 45
-      (print (funcall fl "wat"))))
-#+end_src
+#+BEGIN_SRC lisp :results output
+  (ql:quickload '(:functional-json :dexador))
+  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/")))
+         (total-size 0))
+    (dolist (json json-list)
+      (fj:with-keys ((name :name)
+                     (size "size")
+                     (html '_links :html)) json
+        (incf total-size size)
+        (format t
+                "~s, ~a bytes~%~s~%~%"
+                name size html)))
+    total-size)
+#+END_SRC
 
+** Use `fj:jsoλ` to create access functions.
+
+#+BEGIN_SRC lisp :results result
+  (ql:quickload '(:functional-json :dexador))
+  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/"))))
+    (mapcar (fj:jsoλ :_links :html) json-list))
+#+END_SRC
+
+
+** Use `fj:at` to access to fields.
+
+#+BEGIN_SRC lisp :results output
+  (ql:quickload '(:functional-json :dexador))
+  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/"
+                                           :want-stream t)))
+         (json (first json-list)))
+    (format t "First: ~a~%" (fj:at json :_links))
+    (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
+    (format t "Swapped: ~a~%" (fj:at json :_links))
+    (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
+    (format t "Swapped back: ~a~%" (fj:at json :_links)))
+#+END_SRC
+
+** Use `fj:atλ` to create curried field access functions.
+
+#+BEGIN_SRC lisp :results output
+  (ql:quickload '(:functional-json :dexador :alexandria))
+  (use-package :alexandria)
+
+  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/"
+                                           :want-stream t)))
+         (json (first json-list))
+         (links (fj:atλ json :_links)))
+
+    (map nil (compose #'print links) '(:git :self :html))
+
+    (fj:with-keys ((git :git)
+                   (self :self)) (funcall links)
+    
+      (format t "~%~%First:~%~a~%~a~%~%"
+              (funcall links :git) (funcall links :self))
+
+      (rotatef git self)
+      (format t "Swapped:~%~a~%~a~%~%"
+              (funcall links :git) (fj:at json :_links "self"))
+
+      (rotatef git self)
+      (format t "Swapped back:~%~a%"
+              (funcall links))))
+
+    
+#+END_SRC
+
+** Use `fj:at` to build new objects
+
+#+BEGIN_SRC lisp :results output
+  (ql:quickload '(:functional-json :dexador :alexandria))
+  (use-package :alexandria)
+
+  (let* ((json (fj:o)))
+    ;; setf-able with-keys
+    (fj:with-keys ((wat :wat)
+                   (obj :obj)) json
+      (setf wat 43
+            obj (fj:o :t1 34)))
+    ;; at is setfable
+    (setf (fj:at json "foo") 42)
+    (setf (fj:at json "bar") (fj:o :new 80
+                                   :test3 90))
+    ;; setf multiple levels
+    (setf (fj:at json "bar" "test") (fj:o :new 80
+                                          :test3 90))
+    (setf (fj:at json :key :field :nested) 10)
+    (setf (fj:at json :key :field :other) 12)
+    (setf (fj:at json :key "foo" "test") 90)
+    (print json))
+    
+#+END_SRC
+
+* TODO
+Right now most query functions only work with jso association lists.
+Many functions manipulate jso-alist directly.
+
+I'd like to implement a hashtable version of the jso struct with hashtable compatible access methods.
+
+One possibility is to jso a class with getjso and (setf getjso) methods.
 
 ** License
 BSD
 
 Copyright (c) 2025 Jeremiah LaRocco <jeremiah_larocco@fastmail.com>
 Copyright (c) Streamtech & Marijn Haverbeke (marijnh@gmail.com)
-
-
-* Plan
-** TODO Fill in a TODO list.

@@ -153,7 +153,7 @@
   (let ((inner (loop
                  :for so-far = jso :then this
                  :for key :in keys
-                 :for this = (list 'js:getjso `(key-to-string-m ,key) so-far)
+                 :for this = (list 'getjso `(key-to-string-m ,key) so-far)
                  :finally (return this))))
     `(let ((inval ,inner))
        (lambda (&rest more-keys)
