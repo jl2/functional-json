@@ -14,18 +14,18 @@ Field names can be "strings", :keywords, or 'symbols.
 #+BEGIN_SRC lisp :results output
   (ql:quickload '(:functional-json :dexador))
 
-  (let ((url "https://api.github.com/repos/jl2/functional-json/contents/")
-        (total-size 0))
+  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+         (json-list (fj:read-json (dex:get url)))
+         (sorted-list (sort json-list #'< :key (fj:jsoλ :size)))
+         (total-size 0))
 
-    (dolist (json (fj:read-json (dex:get url)))
+    (loop :for json :in sorted-list :do
       (fj:with-keys ((name :name)
                      (size "size")
-                     (html '_links :html)) json
+                     (type 'type)) json
         (incf total-size size)
-        (format t
-                "~s, ~a bytes~%~s~%~%"
-                name size html)))
-    total-size)
+        (format t "~a ~s, ~a bytes~%" type name size)))
+    (format t "Total: ~a~%" total-size))
 #+END_SRC
 
 ** Use `fj:jsoλ` to create access functions.
