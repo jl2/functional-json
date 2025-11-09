@@ -13,9 +13,11 @@ Field names can be "strings", :keywords, or 'symbols.
 
 #+BEGIN_SRC lisp :results output
   (ql:quickload '(:functional-json :dexador))
-  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/")))
-         (total-size 0))
-    (dolist (json json-list)
+
+  (let ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+        (total-size 0))
+
+    (dolist (json (fj:read-json (dex:get url)))
       (fj:with-keys ((name :name)
                      (size "size")
                      (html '_links :html)) json
@@ -30,18 +32,21 @@ Field names can be "strings", :keywords, or 'symbols.
 
 #+BEGIN_SRC lisp :results result
   (ql:quickload '(:functional-json :dexador))
-  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/"))))
-    (mapcar (fj:jsoλ :_links :html) json-list))
-#+END_SRC
 
+  (let ((url "https://api.github.com/repos/jl2/functional-json/contents/"))
+    (mapcar (fj:jsoλ :_links :html)
+            (fj:read-json (dex:get url)))))
+#+END_SRC
 
 ** Use `fj:at` to access to fields.
 
 #+BEGIN_SRC lisp :results output
   (ql:quickload '(:functional-json :dexador))
-  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/"
-                                           :want-stream t)))
+
+  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+         (json-list (fj:read-json (dex:get url :want-stream t)))
          (json (first json-list)))
+
     (format t "First: ~a~%" (fj:at json :_links))
     (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
     (format t "Swapped: ~a~%" (fj:at json :_links))
@@ -55,8 +60,8 @@ Field names can be "strings", :keywords, or 'symbols.
   (ql:quickload '(:functional-json :dexador :alexandria))
   (use-package :alexandria)
 
-  (let* ((json-list (fj:read-json (dex:get "https://api.github.com/repos/jl2/functional-json/contents/"
-                                           :want-stream t)))
+  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+         (json-list (fj:read-json (dex:get url :want-stream t)))
          (json (first json-list))
          (links (fj:atλ json :_links)))
 
@@ -79,7 +84,7 @@ Field names can be "strings", :keywords, or 'symbols.
     
 #+END_SRC
 
-** Use `fj:at` to build new objects
+** Use `fj:at` can mutate JSON
 
 #+BEGIN_SRC lisp :results output
   (ql:quickload '(:functional-json :dexador :alexandria))
