@@ -1,4 +1,3 @@
-
 (in-package :functional-json)
 
 ;; Readers
@@ -245,4 +244,3 @@ Raises a json-type-error when the type is wrong."
                          accum))
              accum)
             (t (raise 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
-

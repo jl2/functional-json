@@ -27,7 +27,7 @@
 
   :depends-on ( :functional-json
                 :fiveam)
-  
+
   :components ((:module "t"
                 :components
                 ((:file "package"))))

@@ -78,7 +78,7 @@
     (fj:with-keys ((f :foo)
                    (a :third :a)) obj
       (rotatef a f))
-    
+
     (fj:with-keys ((f :foo)
                    (a :third :a)) obj
       (rotatef a f))
@@ -118,5 +118,5 @@
 }"
                  (with-output-to-string (outs)
                    (print-object obj3 outs))))
-    
+
     ))

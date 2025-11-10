@@ -31,7 +31,7 @@
            #:getjso
            #:getjso*
            #:getjso+
-           
+
            #:jsoλ
 
            #:collect
@@ -83,4 +83,3 @@
            #:*print-object-style*
            #:*script-tag-hack*
            ))
-

@@ -1,4 +1,3 @@
-
 (in-package :functional-json)
 
 ;; Disabled while debugging
@@ -78,4 +77,3 @@ gethash."
         `(getjso ,(subseq keys (1+ last))
                  (getjso* ,(subseq keys 0 last) ,jso))
         `(getjso ,keys ,jso))))
-

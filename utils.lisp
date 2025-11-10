@@ -1,4 +1,3 @@
-
 (in-package :functional-json)
 
 ;; Utilities
@@ -44,7 +43,7 @@
   ;;   ((and (eq (type-of jso) 'jso)
   ;;          keys)
   ;;     (getjso (key-to-string (car keys)) jso))
-    
+
   ;;   ((null keys)
   ;;    jso)
   ;;   ((and keys
@@ -65,11 +64,13 @@
       ((and alist
             (null (cdr keys)))
        (setf (cdr alist) val))
-      
+
       ((and alist
             (cdr keys))
        (setf (at-list (cdr alist) (cdr keys)) val))
-      ((and (null alist) (null keys))
+      ((and (null alist) (null keys)
+            (null val))
+
        (prog1 val (push (cons key-string val)
                         (jso-alist jso))))
       ((and (null alist))
@@ -191,7 +192,7 @@
            (type jso jso))
   (let* ((last (position #\. key :from-end t))
          (inner (when last (getjso+ (subseq key 0 last) jso))))
-    
+
     (cond
       ((and last
             inner
@@ -228,4 +229,3 @@
                         (at ,el ,@(cdr kname))))
              key-names)
          ,@body))))
-
