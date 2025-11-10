@@ -11,9 +11,14 @@ This fork aims to be backwards compatible with ST-JSON.
 
 Field names can be "strings", :keywords, or 'symbols.
 
-#+BEGIN_SRC lisp :results output
-  (ql:quickload '(:functional-json :dexador))
+#+BEGIN_SRC lisp
+  (ql:quickload '(:functional-json :dexador :alexandria))
+  (use-package :alexandria)
 
+#+END_SRC
+
+
+#+BEGIN_SRC lisp :results output
   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
          (json-list (fj:read-json (dex:get url)))
          (sorted-list (sort json-list #'< :key (fj:jsoλ :size)))
@@ -31,9 +36,6 @@ Field names can be "strings", :keywords, or 'symbols.
 ** Use `fj:jsoλ` to create access functions.
 
 #+BEGIN_SRC lisp :results output
-  (ql:quickload '(:functional-json :dexador :alexandria))
-  (use-package :alexandria)
-
   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
          (json-list (fj:read-json (dex:get url)))
          (html-link (fj:jsoλ :_links :html)))
@@ -45,8 +47,6 @@ Field names can be "strings", :keywords, or 'symbols.
 ** Use `fj:at` to access to fields.
 
 #+BEGIN_SRC lisp :results output
-  (ql:quickload '(:functional-json :dexador))
-
   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
          (json-list (fj:read-json (dex:get url :want-stream t)))
          (json (first json-list)))
@@ -64,9 +64,6 @@ Field names can be "strings", :keywords, or 'symbols.
 ** Use `fj:atλ` to create curried field access functions.
 
 #+BEGIN_SRC lisp :results output
-  (ql:quickload '(:functional-json :dexador :alexandria))
-  (use-package :alexandria)
-
   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
          (json-list (fj:read-json (dex:get url :want-stream t)))
          (json (first json-list))
@@ -91,15 +88,12 @@ Field names can be "strings", :keywords, or 'symbols.
       (rotatef git self)
       (format t "Swapped back:~%~a%"
               (funcall links))))
-
-    
 #+END_SRC
+
 
 ** Use `fj:at` can mutate JSON
 
 #+BEGIN_SRC lisp :results output
-  (ql:quickload '(:functional-json))
-
   ;; Start with empty object
   (let* ((json (fj:o)))
 
@@ -123,7 +117,6 @@ Field names can be "strings", :keywords, or 'symbols.
     (print json))
     
 #+END_SRC
-
 
 * TODO
 Right now most query functions only work with jso association lists.
