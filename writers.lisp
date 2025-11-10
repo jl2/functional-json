@@ -131,8 +131,7 @@
 (defun write-indent (stream is-pretty depth)
   (when (eq :pretty is-pretty)
     (write-char #\Newline stream)
-    (write-string (indent-string (indent-for-depth depth))
-                  stream)))
+    (write-string (indent-string (indent-for-depth depth)) stream)))
 
 (defmethod write-json-element ((element jso) stream depth)
   ;; (declare #.*optimize*)
@@ -144,11 +143,10 @@
           :unless first
             :do (write-char #\, stream)
                 (write-indent stream is-pretty (1+ depth))
-
           :do
              (write-json-element key stream (1+ depth))
              (write-char #\: stream)
-             (write-char #\space)
+             (write-char #\space stream)
              (write-json-element val stream (1+ depth)))
     (write-indent stream is-pretty depth)
     (write-char #\} stream)))
