@@ -68,12 +68,14 @@
 )
 
 (defun (setf at-list) (val jso keys)
-  "Implementation for (setf at) - set a nested JSON value"
+  "Implementation for (setf at) - set a nested JSON value.
+setf into a list is not supported, only string and symbol keys are supported."
   (let* ((key (car keys))
          (key-string (key-to-string key))
          (alist (assoc key-string
                        (jso-alist jso)
                        :test #'string=)))
+    ;; This doesn't support setf into a list or array.
     (cond
       ((and alist
             (null (cdr keys)))
