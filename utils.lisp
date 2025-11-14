@@ -7,31 +7,45 @@
     "If non-nil then v, vλ, and related functions will fail if there are extra keys when
  it gets to a non-jso object.  Otherwise the remaining keys are return in a list. "))
 
+(declaim (inline next-thing))
+(defun next-thing (json idx)
+  (declare (optimize (speed 3)))
+  (let ((xformed (key-to-string idx)))
+    (etypecase xformed
+      (string (getjso xformed json))
+      (integer (if (< idx (length json))
+                   (values (nth xformed json) t)
+                   (values  nil nil)))
+      (list (at-list json xformed)))))
+
 (defun make-nested-object (value keys)
   "(make-nested-object 42 '(:foo :bar :wat)) -> { foo: { bar: { wat: 42 } } }"
-  (loop :for json = value
-          :then (jso key-string json)
-        :for key :in (reverse keys)
-        :for key-string = (key-to-string key)
-        :finally (return json)))
+  (loop
+    :for json = value :then (jso key-string json)
+    :for key :in (reverse keys)
+    :while key
+    :for key-string = (key-to-string key)
+    :finally (return json)))
 
 (defun jsoλ (&rest keys)
   "Return a function that will extract the given keys from a JSON object."
-  (lambda (jso) (apply #'at jso keys)))
+  (lambda (jso) (at-list jso keys)))
 
 
 (defun at-list (jso keys)
   "Implementation for at - return a nested JSON value"
 
   (loop
-    :for it = jso :then (getjso (key-to-string key) it)
-    :while (eq (type-of it) 'jso)
+    :with val = jso
+    :with present = t
     :for (key . remainder) :on keys
+    :while (and present
+                key)
+    :do
+       (setf (values val present) (next-thing val key))
     :finally
        (return
-         (if (and remainder *fail-on-extra-keys*)
-             (error "Too many keys in js:v")
-             (values it remainder))))
+         (values val present)))
 
   ;; Recursive implementation:
   ;; (cond
@@ -150,15 +164,15 @@
 
 
 (defmacro atλ* (jso &rest keys)
-  "Macro version of vλ"
+  "Macro version of atλ"
   (let ((inner (loop
                  :for so-far = jso :then this
                  :for key :in keys
                  :for this = (list 'getjso `(key-to-string-m ,key) so-far)
                  :finally (return this))))
-    `(let ((inval ,inner))
+    `(let ((inval ,@inner))
        (lambda (&rest more-keys)
-         (apply #'v inval more-keys)))))
+         (apply #'at inval more-keys)))))
 
 (defun collect (func obj)
   "Like mapjso, but returning the results.
@@ -170,37 +184,17 @@
 
 (defun jso-keys (obj)
   "Return the keys from obj."
-  (loop :for (key . val) :in (jso-alist obj)
+  (loop :for (key . nil) :in (jso-alist obj)
         :collecting key))
 
 (defun jso-values (obj)
   "Return the values from obj."
-  (loop :for (key . val) :in (jso-alist obj)
+  (loop :for (nil . val) :in (jso-alist obj)
         :collecting val))
 
 (defun jso-from-alist (vals)
   "Create a jso directly from an alist."
   (make-jso :alist vals))
-
-(defun getjso+ (key jso)
-  "key is a string of the form \"key1.key2. ... key99\" and returns the value:
-    (getjso \"key3\"
-      (getjso \"key2\"
-        (getjso \"key1\" jso)))
-   This is like getjso*, but as a function."
-  (declare (type string key)
-           (type jso jso))
-  (let* ((last (position #\. key :from-end t))
-         (inner (when last (getjso+ (subseq key 0 last) jso))))
-
-    (cond
-      ((and last
-            inner
-            (eql 'jso (type-of inner)))
-       (getjso (subseq key (1+ last)) inner))
-      (t
-       (getjso key jso)))))
-
 
 (defun key-count (obj)
   "The number of key/value pairs in obj"
@@ -229,3 +223,44 @@
                         (at ,el ,@(cdr kname))))
              key-names)
          ,@body))))
+
+(defun ensure-list (list)
+  "If LIST is a list, it is returned. Otherwise returns the list designated by LIST."
+  (if (listp list)
+      list
+      (list list)))
+
+(defun mapping (&rest mappings)
+  (loop :for (first second) :on mappings :by #'cddr
+                :collecting
+                (cons (ensure-list first) (ensure-list second))))
+
+(defun transformer (&rest mappings)
+  ;;(declare (optimize (speed 3) (safety 0) (debug 0)))
+  (let* ((sets (loop
+                 :for (from to) :on mappings :by #'cddr
+                 :for froml = (ensure-list from)
+                 :for tol = (ensure-list to)
+                 :collecting `(setf (at rval ,@tol)
+                                    (at* obj ,@froml)))))
+    
+    (eval `(lambda (obj)
+             (declare (optimize (speed 3) (safety 0) (debug 0)))
+             (let ((rval (jso)))
+               ,@sets
+               rval)))))
+
+(defun transform (xform obj)
+  (loop
+    :with rval = (jso)
+    :for (old-keys . new-keys) :in xform
+    :do
+       (format t "Moving ~a (~a) to ~a~%"
+               
+               old-keys (at-list obj old-keys)
+               new-keys)
+       (setf (at-list rval new-keys)
+             (at-list obj old-keys))
+       
+    :finally (return rval)))
+

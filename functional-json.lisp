@@ -17,19 +17,27 @@
 (defstruct jso
   alist)
 
+(declaim (inline key-to-string
+                 jso o
+                 as-json-bool from-json-bool
+                 getjso (setf getjso)
+                 mapjso
+                 make-jso))
 
 (defun key-to-string (key)
   "Strings stay the same, but symbols are converted to to lower case strings"
-  (etypecase key
+  (typecase key
     (string key)
-    (symbol (string-downcase (symbol-name key)))))
+    (symbol (string-downcase (symbol-name key)))
+    (t key)))
 
 (defmacro key-to-string-m (key)
   "Strings stay the same, but symbols are converted to to lower case strings"
-  (etypecase key
+  (typecase key
     (string key)
-    (symbol (string-downcase (symbol-name key)))))
-
+    (symbol (string-downcase (symbol-name key)))
+    (t key))
+  )
 
 (defun jso (&rest fields)
   "Create a JS object. Arguments should be alternating labels and values."

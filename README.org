@@ -44,6 +44,7 @@ Field names can be "strings", :keywords, or 'symbols.
     (mapc (compose #'print html-link) json-list)))
 #+END_SRC
 
+
 ** Use `fj:at` to access to fields.
 
 #+BEGIN_SRC lisp :results output
@@ -91,7 +92,7 @@ Field names can be "strings", :keywords, or 'symbols.
 #+END_SRC
 
 
-** Use `fj:at` can mutate JSON
+** Use `fj:at` can build JSON
 
 #+BEGIN_SRC lisp :results output
   ;; Start with empty object
@@ -104,7 +105,9 @@ Field names can be "strings", :keywords, or 'symbols.
             obj (fj:o :t1 34)))
     
     ;; fj:at is setfable
-    (setf (fj:at json "foo") 42)
+    (setf (fj:at json "foo") (fj:o))
+    (setf (fj:at json :foo :bar) 47)
+    (setf (fj:at json :bar :foo ) 48)
     (setf (fj:at json "bar") (fj:o :new 80
                                    :test3 90))
     ;; setf multiple levels of nested structure
@@ -117,6 +120,7 @@ Field names can be "strings", :keywords, or 'symbols.
     (print json))
     
 #+END_SRC
+
 
 * TODO
 Right now most query functions only work with jso association lists.

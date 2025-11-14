@@ -21,6 +21,9 @@
            #:make-jso
            #:make-nested-object
 
+           #:mapping
+           #:transform
+           #:transformer
 
            #:at
            #:at*
@@ -30,7 +33,6 @@
            #:with-keys
            #:getjso
            #:getjso*
-           #:getjso+
 
            #:jsoλ
 

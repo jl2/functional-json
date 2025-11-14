@@ -2,8 +2,6 @@
 
 ;; Writer and pretty printer
 
-;; TODO: Combine pretty and non-pretty printed implementation
-
 (defparameter *print-object-style* :pretty
   "Set this to control the print style of print-object.
   :pretty - pretty prints using print-json-element
@@ -19,7 +17,7 @@
   document. It prevents '</script>' from occurring in strings by
   escaping any slash following a '<' character.")
 
-(defparameter *output-literal-unicode* nil
+(defparameter *output-literal-unicode* t
   "Bind this to T in order to reduce the use of \uXXXX Unicode escapes,
   by emitting literal characters (encoded in UTF-8). This may help
   reduce the parsing effort for any recipients of the JSON output, if

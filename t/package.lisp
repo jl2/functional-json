@@ -36,16 +36,6 @@
     (is (equal '(42) (fj:jso-values obj2)))
     (is (equal '() (fj:jso-values obj3)))))
 
-(test getjso+
-  (let ((nested-obj (fj:jso "pt" (fj:jso "x" 1.0 "y" 2.0 "z" 3.0)
-                            "name" "nested"
-                            "wat" (fj:jso "foo" 42
-                                          "bar" 13))))
-    (is (= 1.0 (fj:getjso+ "pt.x" nested-obj)))
-    (is (= 2.0 (fj:getjso+ "pt.y" nested-obj)))
-    (is (= 3.0 (fj:getjso+ "pt.z" nested-obj)))
-    (is (= 13 (fj:getjso+ "wat.bar" nested-obj)))))
-
 (test key-count
   (is (= 2 (fj:key-count (fj:jso "foo" 42 "bar" 32))))
   (is (= 1 (fj:key-count (fj:jso "foo" (fj:jso "bar" 32
