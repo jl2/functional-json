@@ -45,23 +45,28 @@ Field names can be "strings", :keywords, or 'symbols.
 #+END_SRC
 
 
-** Use `fj:at` to access to fields.
+** Use `fj:at` to access fields.
 
 #+BEGIN_SRC lisp :results output
-  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
-         (json-list (fj:read-json (dex:get url :want-stream t)))
-         (json (fj:at json-list 1)))
+   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+          (json-list (fj:read-json (dex:get url :want-stream t)))
+          (json (fj:at json-list 1)))
 
-    ;; Swap fields and make modifications
-    (format t "First: ~a~%" (fj:at json-list 1 :_links))
 
-    ;; Can't use json-list to rotatef, setf, etc.
-    (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
-    (format t "Swapped: ~a~%" (fj:at json :_links))
+     ;; Index into arrays and lists using integers, into
+     ;; objects using strings, symbols, or keywords
+     (format t "First: ~a~%" (fj:at json-list 1 :_links))
 
-    (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
-    (format t "Swapped back: ~a~%" (fj:at json-list 1 :_links)))
+     ;; Swap fields and make modifications
+     ;; (setf at) doesn't support array/list indexing
+     (rotatef (fj:at json :_links 'git)
+              (fj:at json :_links "self") )
+     (format t "Swapped: ~a~%" (fj:at json :_links))
+
+     (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
+     (format t "Swapped back: ~a~%" (fj:at json-list 1 :_links)))
 #+END_SRC
+
 
 
 ** Use `fj:atλ` to create curried field access functions.
@@ -94,7 +99,7 @@ Field names can be "strings", :keywords, or 'symbols.
 #+END_SRC
 
 
-** Use `fj:at` can build JSON
+** Use `fj:at` to build JSON
 
 #+BEGIN_SRC lisp :results output
   ;; Start with empty object
