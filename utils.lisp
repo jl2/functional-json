@@ -72,24 +72,24 @@
 setf into a list is not supported, only string and symbol keys are supported."
   (let* ((key (car keys))
          (key-string (key-to-string key))
-         (alist (assoc key-string
+         (alist-entry (assoc key-string
                        (jso-alist jso)
                        :test #'string=)))
     ;; This doesn't support setf into a list or array.
     (cond
-      ((and alist
+      ((and alist-entry
             (null (cdr keys)))
-       (setf (cdr alist) val))
+       (setf (cdr alist-entry) val))
 
-      ((and alist
+      ((and alist-entry
             (cdr keys))
-       (setf (at-list (cdr alist) (cdr keys)) val))
-      ((and (null alist) (null keys)
+       (setf (at-list (cdr alist-entry) (cdr keys)) val))
+      ((and (null alist-entry) (null keys)
             (null val))
 
        (prog1 val (push (cons key-string val)
                         (jso-alist jso))))
-      ((and (null alist))
+      ((and (null alist-entry))
        (prog1 val (push (cons key-string (make-nested-object val (cdr keys)))
                         (jso-alist jso)))))))
 
@@ -111,7 +111,8 @@ setf into a list is not supported, only string and symbol keys are supported."
   (loop
     :for so-far = jso :then this
     :for key :in keys
-    :for this = `(getjso (key-to-string-m ,key) ,so-far)
+    :for real-key = (key-to-string-m key)
+    :for this = `(getjso ,real-key ,so-far)
     :finally (return this)))
 
 (defun (setf at) (val jso &rest keys)
@@ -146,25 +147,6 @@ setf into a list is not supported, only string and symbol keys are supported."
     (apply #'at jso (concatenate 'list
                                 keys
                                 more-keys))))
-(defun (setf atλ) (val jso &rest keys)
-  "Curry #'at creating a function that takes keys and returns values:
-(let* ((json (js:read-json \"
-{\"a\": {
-   \"b\": {
-     \"c\": {
-       \"d\": {
-         \"e\": 42
-}}}}}\"))
-       (temp (js:vλ :a :b :c)))
-    (funcall temp :d :e))
-42"
-  (lambda (&rest more-keys)
-    (setf (apply #'at jso (concatenate 'list
-                                       keys
-                                       more-keys))
-          val)))
-
-
 (defmacro atλ* (jso &rest keys)
   "Macro version of atλ"
   (let ((inner (loop
@@ -175,14 +157,6 @@ setf into a list is not supported, only string and symbol keys are supported."
     `(let ((inval ,@inner))
        (lambda (&rest more-keys)
          (apply #'at inval more-keys)))))
-
-(defun collect (func obj)
-  "Like mapjso, but returning the results.
-   Returns a list with the results of calling func on each key/value pair in a JS object."
-  (declare (type jso obj)
-           (type (function (t t) t) func))
-  (loop :for (key . val) :in (jso-alist obj)
-        :collect (funcall func key val)))
 
 (defun jso-keys (obj)
   "Return the keys from obj."
@@ -245,7 +219,7 @@ setf into a list is not supported, only string and symbol keys are supported."
                  :for tol = (ensure-list to)
                  :collecting `(setf (at rval ,@tol)
                                     (at* obj ,@froml)))))
-    
+
     (eval `(lambda (obj)
              (declare (optimize (speed 3) (safety 0) (debug 0)))
              (let ((rval (jso)))
@@ -258,11 +232,10 @@ setf into a list is not supported, only string and symbol keys are supported."
     :for (old-keys . new-keys) :in xform
     :do
        (format t "Moving ~a (~a) to ~a~%"
-               
+
                old-keys (at-list obj old-keys)
                new-keys)
        (setf (at-list rval new-keys)
              (at-list obj old-keys))
-       
-    :finally (return rval)))
 
+    :finally (return rval)))

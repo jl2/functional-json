@@ -33,10 +33,10 @@
 
 (defmacro key-to-string-m (key)
   "Strings stay the same, but symbols are converted to to lower case strings"
-  (typecase key
-    (string key)
-    (symbol (string-downcase (symbol-name key)))
-    (t key))
+  `(typecase ,key
+    (string ,key)
+    (symbol (string-downcase (symbol-name ,key)))
+    (t ,key))
   )
 
 (defun jso (&rest fields)
@@ -72,16 +72,29 @@ gethash."
   (let ((pair (assoc key (jso-alist map) :test #'string=)))
     (if pair
         (setf (cdr pair) val)
-        (prog1 val (push (cons key val) (jso-alist map))))))
+        (prog1 val
+          (push (cons key val)
+                (jso-alist map))))))
 
 (defun mapjso (func map)
   "Iterate over the key/value pairs in a JS object."
   (loop :for (key . val) :in (jso-alist map)
         :do (funcall func key val)))
 
+(defun collect (func obj)
+  "Returns a list with the results of calling func on each key/value pair in a JS object.
+Like mapjso, but collects func's return values."
+  (declare (type jso obj)
+           (type (function (t t) t) func))
+  (loop :for (key . val) :in (jso-alist obj)
+        :collect (funcall func key val)))
+
+;; (fj:getjso* "foo.bar" (fj:o :foo (fj:o :bar 32 :baz 2) :bar 1))
 (defmacro getjso* (keys jso)
-  (let ((last (position #\. keys :from-end t)))
-    (if last
-        `(getjso ,(subseq keys (1+ last))
-                 (getjso* ,(subseq keys 0 last) ,jso))
-        `(getjso ,keys ,jso))))
+  "Like getjso, but splits keys on #\. to recursively access nested objects."
+  (let ((split (loop
+                 :for idx = 0 :then (1+ next-dot)
+                 :for next-dot = (position #\. keys :start (1+ idx))
+                 :collecting (subseq keys idx next-dot)
+                 :while next-dot)))
+    `(at* ,jso ,@split)))
