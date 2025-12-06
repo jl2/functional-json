@@ -239,3 +239,22 @@ setf into a list is not supported, only string and symbol keys are supported."
              (at-list obj old-keys))
 
     :finally (return rval)))
+
+(defmacro def-jso-type (type-name keys)
+  "Define function #'<type-name>-p and type <type-name> to represent JSON
+objects with specified keys."
+  (let ((is-name (intern (string-upcase (format nil "~a-p" type-name))))
+        (key-var (gensym "keys")))
+    `(progn
+       (defun ,is-name (val)
+         (let ((,key-var ,keys))
+           (declare (type jso val))
+           (loop :with has-key = t
+                 :with ignored = nil
+                 :while has-key
+                 :for key in ,key-var
+                 :do (setf (values ignored has-key) (at-list val key))
+                 :finally (return has-key))))
+       (deftype ,type-name ()
+         '(and jso
+           (satisfies ,is-name))))))

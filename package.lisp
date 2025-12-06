@@ -78,6 +78,8 @@
            #:read-json-object
            #:read-json-string
 
+           #:def-jso-type
+
            #:*allow-comments*
            #:*decode-objects-as*
            #:*output-literal-unicode*
