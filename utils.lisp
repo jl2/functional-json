@@ -4,8 +4,9 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *fail-on-extra-keys* nil
-    "If non-nil then v, vλ, and related functions will fail if there are extra keys when
- it gets to a non-jso object.  Otherwise the remaining keys are return in a list. "))
+    "If non-nil then v, vλ, and related functions will fail if there are extra
+ keys when it gets to a non-jso object.  Otherwise the remaining keys are return
+ in a list."))
 
 (declaim (inline next-thing))
 (defun next-thing (json idx)
@@ -34,7 +35,6 @@
 
 (defun at-list (jso keys)
   "Implementation for at - return a nested JSON value"
-
   (loop
     :with val = jso
     :with present = t
@@ -68,8 +68,8 @@
 )
 
 (defun (setf at-list) (val jso keys)
-  "Implementation for (setf at) - set a nested JSON value.
-setf into a list is not supported, only string and symbol keys are supported."
+  "Implementation for (setf at) - set a nested JSON value.  setf into a list is
+not supported, only string and symbol keys are supported."
   (let* ((key (car keys))
          (key-string (key-to-string key))
          (alist-entry (assoc key-string
@@ -201,7 +201,8 @@ setf into a list is not supported, only string and symbol keys are supported."
          ,@body))))
 
 (defun ensure-list (list)
-  "If LIST is a list, it is returned. Otherwise returns the list designated by LIST."
+  "If LIST is a list, it is returned. Otherwise returns the list designated by
+LIST."
   (if (listp list)
       list
       (list list)))
