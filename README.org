@@ -128,6 +128,76 @@ Field names can be "strings", :keywords, or 'symbols.
     
 #+END_SRC
 
+** Use `fj:def-jso-type` to define types for JSON objects
+Declare Common Lisp types for JSON objects with certain keys.
+
+#+BEGIN_SRC lisp
+  ;; Declare some JSON types
+  ;; An automobile has a manufacturer with a name and country, a model name, and
+  ;; an engine
+  (fj:def-jso-type automobile
+      '((:manufacturer :name)
+        (:manufacturer :country)
+        :model
+        :engine))
+  ;; An ice automobile has an engine with a cylinder count and displacement
+  (fj:def-jso-type ice-automobile
+      '((:engine :cylinder-count)
+        (:engine :displacement)))
+  ;; An EV automobile has an engine with watts and volts
+  (fj:def-jso-type ev-automobile
+      '((:engine :watts)
+        (:engine :volts)))
+
+  ;; Check JSON types using typecase
+  (defun what-is-it (car)
+    (typecase car
+      (ev-automobile
+       "Electric car")
+      (ice-automobile
+       "Combustion car")
+      (automobile
+       "Just a car")))
+
+  (let ((bmw (fj:read-json "
+    {
+      \"manufacturer\": {
+         \"name\": \"BMW\",
+         \"country\": \"Germany\"
+      },
+      \"model\": \"M3\",
+      \"engine\": {
+         \"cylinder-count\": 6,
+         \"displacement\": 6.0
+      }
+    }"))
+        (tesla (fj:read-json "
+  {
+    \"manufacturer\": {
+       \"name\": \"Tesla\",
+       \"country\": \"usa\"
+    },
+    \"model\": \"Whatever\",
+    \"engine\": {
+       \"watts\": 6,
+       \"volts\": 120.0
+    }
+  }")))
+
+    ;; Or (typep) to check type
+    (list (list :bmw
+                :auto (typep bmw 'automobile)
+                :ice (typep bmw 'ice-automobile)
+                :ev (typep bmw 'ev-automobile)
+                :what (what-is-it bmw))
+          (list :tesla
+                :auto (typep tesla 'automobile)
+                :ice (typep tesla 'ice-automobile)
+                :ev (typep tesla 'ev-automobile)
+                :what (what-is-it tesla))))
+          
+#+end_src
+
 
 * TODO
 Right now most query functions only work with jso association lists.
