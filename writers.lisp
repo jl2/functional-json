@@ -118,15 +118,16 @@
   (* (max 0 depth)
      *pretty-print-indent-size*))
 
-(defparameter *ws-cache* (make-hash-table :size 32))
+(defparameter *whitespace-cache* (make-hash-table :size 32)
+  "Cache indentation whitespace strings so they don't need to be recreated.")
 
 (defun indent-string (space-count)
-  (when (null (gethash space-count *ws-cache*))
-    (setf (gethash space-count *ws-cache*)
+  (when (null (gethash space-count *whitespace-cache*))
+    (setf (gethash space-count *whitespace-cache*)
           (make-string space-count :initial-element #\space)))
-  (gethash space-count *ws-cache*))
+  (gethash space-count *whitespace-cache*))
 
-(defun write-indent (stream is-pretty depth)
+(defun write-whitespace (stream is-pretty depth)
   (when (eq :pretty is-pretty)
     (write-char #\Newline stream)
     (write-string (indent-string (indent-for-depth depth)) stream)))
@@ -135,18 +136,18 @@
   ;; (declare #.*optimize*)
   (let ((is-pretty *print-object-style*))
     (write-char #\{ stream)
-    (write-indent stream is-pretty (1+ depth))
+    (write-whitespace stream is-pretty (1+ depth))
     (loop :for (key . val) :in (jso-alist element)
           :for first := t :then nil
           :unless first
             :do (write-char #\, stream)
-                (write-indent stream is-pretty (1+ depth))
+                (write-whitespace stream is-pretty (1+ depth))
           :do
              (write-json-element key stream (1+ depth))
              (write-char #\: stream)
              (write-char #\space stream)
              (write-json-element val stream (1+ depth)))
-    (write-indent stream is-pretty depth)
+    (write-whitespace stream is-pretty depth)
     (write-char #\} stream)))
 
 (defmethod write-json-element ((element list) stream depth)
@@ -154,14 +155,14 @@
 
   (let ((is-pretty *print-object-style*))
     (write-char #\[ stream)
-    (write-indent stream is-pretty (1+ depth))
+    (write-whitespace stream is-pretty (1+ depth))
     (loop
       :for object :in element
       :for first = t :then nil
       :when (not first) :do
         (write-char #\, stream)
-        (write-indent stream is-pretty (1+ depth))
+        (write-whitespace stream is-pretty (1+ depth))
       :do
          (write-json-element object stream (1+ depth)))
-    (write-indent stream is-pretty depth)
+    (write-whitespace stream is-pretty depth)
     (write-char #\] stream)))
