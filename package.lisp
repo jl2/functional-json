@@ -17,73 +17,75 @@
   (:use :common-lisp)
   (:nicknames :fj)
   (:export #:o
-           #:jso
-           #:make-jso
-           #:make-nested-object
+         #:jso
+         #:make-jso
+         #:make-nested-object
 
-           #:mapping
-           #:transform
-           #:transformer
+         #:mapping
+         #:transform
+         #:transformer
 
-           #:at
-           #:at*
-           #:at-list
-           #:atλ
-           #:atλ*
-           #:with-keys
-           #:getjso
-           #:getjso*
+         #:show
 
-           #:jsoλ
+         #:at
+         #:at*
+         #:at-list
+         #:atλ
+         #:atλ*
+         #:with-keys
+         #:getjso
+         #:getjso*
 
-           #:collect
-           #:mapjso
+         #:jsoλ
 
-           #:copy-jso
+         #:collect
+         #:mapjso
 
-           #:json-bool
-           #:json-null
+         #:copy-jso
 
-
-           #:jso-alist
-
-           #:jso-from-alist
-
-           #:jso-p
-           #:key-count
-           #:jso-keys
-           #:jso-values
-
-           #:json-error
-           #:json-eof-error
-           #:json-parse-error
-           #:json-type-error
+         #:json-bool
+         #:json-null
 
 
-           #:as-json-bool
-           #:from-json-bool
+         #:jso-alist
 
-           #:print-indent
-           #:print-json-element
-           #:write-json
-           #:write-json-element
-           #:write-json-to-string
+         #:jso-from-alist
 
-           #:read-json
-           #:read-json-as-type
-           #:read-json-atom
-           #:read-json-element
-           #:read-json-from-string
-           #:read-json-list
-           #:read-json-object
-           #:read-json-string
+         #:jso-p
+         #:key-count
+         #:jso-keys
+         #:jso-values
 
-           #:def-jso-type
+         #:json-error
+         #:json-eof-error
+         #:json-parse-error
+         #:json-type-error
 
-           #:*allow-comments*
-           #:*decode-objects-as*
-           #:*output-literal-unicode*
-           #:*pretty-print-indent-size*
-           #:*print-object-style*
-           #:*script-tag-hack*
-           ))
+
+         #:as-json-bool
+         #:from-json-bool
+
+         #:print-indent
+         #:print-json-element
+         #:write-json
+         #:write-json-element
+         #:write-json-to-string
+
+         #:read-json
+         #:read-json-as-type
+         #:read-json-atom
+         #:read-json-element
+
+         #:read-json-list
+         #:read-json-object
+         #:read-json-string
+
+         #:def-jso-type
+
+         #:*allow-comments*
+         #:*decode-objects-as*
+         #:*output-literal-unicode*
+         #:*pretty-print-indent-size*
+         #:*print-object-style*
+         #:*script-tag-hack*
+         ))

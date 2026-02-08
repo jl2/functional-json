@@ -166,3 +166,36 @@
          (write-json-element object stream (1+ depth)))
     (write-whitespace stream is-pretty depth)
     (write-char #\] stream)))
+
+(defun show (obj
+             fields
+             &key
+               (stream *standard-output*)
+               (first-indent 0)
+               (indent 4)
+               (name-width 20)
+               (value-width 20)
+               (newline t))
+  "Write fields from object to stream in a user friendly way..
+obj is a JSO object.
+fields is a list of (name . keys)
+first-indent is the number of spaces prefixing the first line.
+indent is the number of spaces prefixing following lines.
+name-width and value-width control the print width of the name and the corresponding JSON value.
+stream controls where the data is written
+If newline, start with an empty line."
+  (when newline (format stream "~%"))
+  (loop
+    :with spaces = (make-string indent :initial-element #\space)
+    :for (name . keys) :in fields
+    :for fstring = (format nil
+                           "~a~~~a,,a : ~~~a,,a~%"
+                           (make-string first-indent :initial-element #\space)
+                           (+ first-indent indent name-width) value-width)
+      :then (format nil
+                    "~a~~~a,,a : ~~~a,,a~%"
+                    spaces
+                    (+ first-indent name-width)
+                    value-width)
+      :do
+         (format stream fstring name (fj:at-list obj (ensure-list keys)))))

@@ -10,7 +10,7 @@
   :license "BSD"
 
   :serial t
-  :depends-on ()
+  :depends-on (:trivial-gray-streams)
 
   :components ((:file "package")
                (:file "functional-json")

@@ -52,7 +52,7 @@
   (loop :for char := (peek-char nil stream nil)
         :while (cond
                  ((is-whitespace char) (read-char stream))
-                 ((and *allow-comments* (char= #\/ char))
+                 ((and *allow-comments* char (char= #\/ char))
                   (skip-cpp-comment stream)))))
 
 (defun at-eof (stream)
@@ -73,12 +73,6 @@
 (defmethod read-json ((in string) &optional (junk-allowed-p nil))
   (with-input-from-string (stream in)
     (read-json stream junk-allowed-p)))
-
-(defun read-json-from-string (string &key (start 0) end junk-allowed-p)
-  (let (index value)
-    (with-input-from-string (stream string :index index :start start :end end)
-      (setf value (read-json stream junk-allowed-p)))
-    (values value index)))
 
 (defun read-json-as-type (source type)
   "Read a JSON value and assert the result to be of a given type.
@@ -190,7 +184,7 @@ Raises a json-type-error when the type is wrong."
         stream #\} "object literal"
         (lambda ()
           (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
-            (unless (or (typep slot-name 'string) (typep slot-name 'number))
+            (unless (or (stringp slot-name) (numberp slot-name))
               (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
             (skip-whitespace stream)
             (when (not (eql (read-char stream nil) #\:))
@@ -205,7 +199,7 @@ Raises a json-type-error when the type is wrong."
          stream #\} "object literal"
          (lambda ()
            (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
-             (unless (or (typep slot-name 'string) (typep slot-name 'number))
+             (unless (or (stringp slot-name) (numberp slot-name))
                (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
              (skip-whitespace stream)
              (when (not (eql (read-char stream nil) #\:))
