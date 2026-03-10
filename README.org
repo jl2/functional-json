@@ -85,7 +85,7 @@ Field names can be "strings", :keywords, or 'symbols.
     ;; through fj:at
     (fj:with-keys ((git :git)
                    (self :self)) (funcall links)
-    
+
       (format t "~%~%First:~%~a~%~a~%~%"
               (funcall links :git) (funcall links :self))
 
@@ -110,7 +110,7 @@ Field names can be "strings", :keywords, or 'symbols.
                    (obj :obj)) json
       (setf wat 43
             obj (fj:o :t1 34)))
-    
+
     ;; fj:at is setfable
     (setf (fj:at json "foo") (fj:o))
     (setf (fj:at json :foo :bar) 47)
@@ -125,7 +125,7 @@ Field names can be "strings", :keywords, or 'symbols.
     (setf (fj:at json :key "foo" "test") 90)
 
     (print json))
-    
+
 #+END_SRC
 
 ** Use `fj:def-jso-type` to define types for JSON objects
@@ -195,7 +195,7 @@ Declare Common Lisp types for JSON objects with certain keys.
                 :ice (typep tesla 'ice-automobile)
                 :ev (typep tesla 'ev-automobile)
                 :what (what-is-it tesla))))
-          
+
 #+end_src
 
 

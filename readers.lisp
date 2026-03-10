@@ -13,6 +13,12 @@
   Controls how js objects should be decoded. :jso means decode to internal struct which
   can be processed by getjso, mapjso etc. :hashtable means decode as hash tables.")
 
+(defparameter *decode-lists-as* :list
+  "Valid values: :list :array
+  Controls how js arrays should be decoded.
+  :list means decode into a list.
+  :array means decode into an array")
+
 (defparameter *allow-comments* nil
   "Non-nil means ignore comments when parsing.")
 
@@ -34,66 +40,32 @@
 (defun ends-atom (char)
   (or (is-whitespace char) (member char '(#\) #\] #\} #\, #\:))))
 
-(defun skip-cpp-comment (stream)
-  ;; (declare #.*optimize*)
-  ;; Skip the first slash.
-  (read-char stream)
-  (unless (char= #\/ (peek-char nil stream nil))
-    (raise 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
-  ;; Skip the second slash.
-  (read-char stream)
-  (loop :while (not (member (peek-char nil stream nil)
-                            '(#\newline #\return)))
-        :do (read-char stream))
-  (skip-whitespace stream))
 
 (defun skip-whitespace (stream)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (loop :for char := (peek-char nil stream nil)
         :while (cond
                  ((is-whitespace char) (read-char stream))
+
+                 ;; Skip comments
                  ((and *allow-comments* char (char= #\/ char))
-                  (skip-cpp-comment stream)))))
+                  (read-char stream)
+                  (unless (char= #\/ (peek-char nil stream nil))
+                    (raise 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
+                  ;; Skip the second slash.
+                  (read-char stream)
+                  (loop :while (not (member (peek-char nil stream nil)
+                                            '(#\newline #\return)))
+                        :do (read-char stream))
+                  (read-char stream)
+                  ))))
 
 (defun at-eof (stream)
   (eql (peek-char nil stream nil :eof) :eof))
 
-(defmethod read-json ((file-name pathname) &optional (junk-allowed-p nil))
-  "Open file-name and call read-json on the stream."
-  (with-open-file (stream file-name :direction :input)
-    (read-json stream junk-allowed-p)))
-
-(defmethod read-json ((in stream) &optional (junk-allowed-p t))
-  (let ((value (read-json-element in)))
-    (skip-whitespace in)
-    (unless (or junk-allowed-p (at-eof in))
-      (raise 'json-parse-error "Unused characters at end of input."))
-    value))
-
-(defmethod read-json ((in string) &optional (junk-allowed-p nil))
-  (with-input-from-string (stream in)
-    (read-json stream junk-allowed-p)))
-
-(defun read-json-as-type (source type)
-  "Read a JSON value and assert the result to be of a given type.
-Raises a json-type-error when the type is wrong."
-  (let ((val (read-json source)))
-    (if (typep val type)
-        val
-        (raise 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))
-
-(defun read-json-element (stream)
-  ;; (declare #.*optimize*)
-  (skip-whitespace stream)
-  (case (peek-char nil stream nil :eof)
-    (:eof (raise 'json-eof-error "Unexpected end of input."))
-    ((#\" #\') (read-json-string stream))
-    (#\[ (read-json-list stream))
-    (#\{ (read-json-object stream))
-    (t (read-json-atom stream))))
-
+(declaim (inline read-json-element read-json-string))
 (defun read-json-string (stream)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (labels ((interpret (char)
              (if (eql char #\\)
                  (let ((escaped (read-char stream)))
@@ -140,43 +112,57 @@ Raises a json-type-error when the type is wrong."
                 :do (write-char (interpret next) out))
         (end-of-file () (raise 'json-eof-error "Encountered end of input inside string constant."))))))
 
+(defun read-json-element (stream)
+  (declare #.*optimize*)
+  (skip-whitespace stream)
+  (case (peek-char nil stream nil :eof)
+    (:eof (raise 'json-eof-error "Unexpected end of input."))
+    ((#\" #\') (read-json-string stream))
+    (#\[ (read-json-list stream))
+    (#\{ (read-json-object stream))
+    (t (read-json-atom stream))))
+
+
+
 ;;; (fs:read-json-from-string "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E.\"")
 
+(declaim (inline gather-comma-separated))
 (defun gather-comma-separated (stream end-char obj-name gather-func)
-  ;; (declare #.*optimize*)
-  (declare (type character end-char))
-  (declare (type function gather-func))
+  (declare #.*optimize*)
+  (declare (type character end-char)
+           (type (function () t) gather-func))
   ;; Throw away opening char
   (read-char stream)
   (let ((finished nil))
     (loop
-     (skip-whitespace stream)
-     (let ((next (peek-char nil stream nil #\nul)))
-       (declare (type character next))
-       (when (eql next #\nul)
-         (raise 'json-eof-error "Encountered end of input inside ~A." obj-name))
-       (when (eql next end-char)
-         (read-char stream)
-         (return))
-       (when finished
-         (raise 'json-parse-error "Comma or end of ~A expected, found '~A'" obj-name next)))
-     (funcall gather-func)
-     (skip-whitespace stream)
-     (if (eql (peek-char nil stream nil) #\,)
-         (read-char stream)
-         (setf finished t)))))
+      (skip-whitespace stream)
+      (let ((next (peek-char nil stream nil #\nul)))
+        (declare (type character next))
+        (when (eql next #\nul)
+          (raise 'json-eof-error "Encountered end of input inside ~A." obj-name))
+        (when (eql next end-char)
+          (read-char stream)
+          (return))
+        (when finished
+          (raise 'json-parse-error "Comma or end of ~A expected, found '~A'" obj-name next)))
+      (funcall gather-func)
+      (skip-whitespace stream)
+      (if (eql (peek-char nil stream nil) #\,)
+          (read-char stream)
+          (setf finished t)))))
 
 (defun read-json-list (stream)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (let ((accum ()))
-    (gather-comma-separated
-     stream #\] "list"
-     (lambda ()
-       (push (read-json-element stream) accum)))
-    (nreverse accum)))
+    (gather-comma-separated stream #\] "list"
+                            (lambda ()
+                              (push (read-json-element stream) accum)))
+    (ecase *decode-lists-as*
+      (:list (nreverse accum))
+      (:array (make-array (length accum) :initial-contents (nreverse accum))))))
 
 (defun read-json-object (stream)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (ecase *decode-objects-as*
     ((:jso :alist)
      (let ((accum ()))
@@ -208,7 +194,7 @@ Raises a json-type-error when the type is wrong."
         accum))))
 
 (defun looks-like-a-number (string)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (let ((string (coerce string 'simple-string)))
     (every (lambda (char)
              (or (digit-char-p char)
@@ -216,7 +202,8 @@ Raises a json-type-error when the type is wrong."
            string)))
 
 (defun read-json-atom (stream)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*
+           (type stream stream))
   (let ((accum (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t)))
     (loop
      (let ((next (peek-char nil stream nil :eof)))
@@ -238,3 +225,32 @@ Raises a json-type-error when the type is wrong."
                          accum))
              accum)
             (t (raise 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
+
+(defmethod read-json ((in stream) &optional (junk-allowed-p t))
+  (declare #.*optimize*)
+  (let ((value (read-json-element in)))
+    (skip-whitespace in)
+    (unless (or junk-allowed-p (at-eof in))
+      (raise 'json-parse-error "Unused characters at end of input."))
+    value))
+
+(defmethod read-json ((in string) &optional (junk-allowed-p nil))
+  (declare #.*optimize*)
+  (with-input-from-string (stream in)
+    (read-json stream junk-allowed-p)))
+
+(defmethod read-json ((file-name pathname) &optional (junk-allowed-p nil))
+  "Open file-name and call read-json on the stream."
+  (declare #.*optimize*)
+  (with-open-file (stream file-name :direction :input)
+    (read-json stream junk-allowed-p)))
+
+
+(defun read-json-as-type (source type)
+  "Read a JSON value and assert the result to be of a given type.
+Raises a json-type-error when the type is wrong."
+  (declare #.*optimize*)
+  (let ((val (read-json source)))
+    (if (typep val type)
+        val
+        (raise 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))

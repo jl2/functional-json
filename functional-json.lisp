@@ -2,9 +2,9 @@
 
 ;; Disabled while debugging
 ;; TODO: maybe permanently and allow user to set at load time
-;; (eval-when (:compile-toplevel :load-toplevel :execute)
-;;   (defparameter *optimize*
-;;     '(optimize (speed 1) (safety 3) (space 3) (debug 1) (compilation-speed 0))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defparameter *optimize*
+    '(optimize (speed 1) (safety 0) (space 3) (debug 1) (compilation-speed 0))))
 
 
 ;; Types that might be useful when checking the type of input.
@@ -26,6 +26,7 @@
 
 (defun key-to-string (key)
   "Strings stay the same, but symbols are converted to to lower case strings"
+  (declare #.*optimize*)
   (typecase key
     (string key)
     (symbol (string-downcase (symbol-name key)))
@@ -41,11 +42,13 @@
 
 (defun jso (&rest fields)
   "Create a JS object. Arguments should be alternating labels and values."
+  (declare #.*optimize*)
   (make-jso :alist (loop :for (key val) :on fields :by #'cddr
                          :collect (cons key val))))
 
 (defun o (&rest fields)
   "Create a JS object. Arguments should be alternating labels and values."
+  (declare #.*optimize*)
   (make-jso :alist (loop :for (key val) :on fields :by #'cddr
                          :collect (cons (key-to-string key) val))))
 
@@ -54,9 +57,12 @@
 ;; of T and NIL.
 (defun as-json-bool (value)
   "Convert a generalised boolean to a :true/:false keyword."
+  (declare #.*optimize*)
   (if value :true :false))
+
 (defun from-json-bool (value)
   "Convert :true or :false to its boolean equivalent."
+  (declare #.*optimize*)
   (ecase value (:true t) (:false nil)))
 
 
@@ -64,11 +70,13 @@
 (defun getjso (key map)
   "Fetch a value from a JS object. Returns a second value like
 gethash."
+  (declare #.*optimize*)
   (let ((pair (assoc key (jso-alist map) :test #'string=)))
     (values (cdr pair) (and pair t))))
 
 (defun (setf getjso) (val key map)
   "Store a value in a JS object."
+  (declare #.*optimize*)
   (let ((pair (assoc key (jso-alist map) :test #'string=)))
     (if pair
         (setf (cdr pair) val)
@@ -78,12 +86,14 @@ gethash."
 
 (defun mapjso (func map)
   "Iterate over the key/value pairs in a JS object."
+  (declare #.*optimize*)
   (loop :for (key . val) :in (jso-alist map)
         :do (funcall func key val)))
 
 (defun collect (func obj)
   "Returns a list with the results of calling func on each key/value pair in a JS object.
 Like mapjso, but collects func's return values."
+  (declare #.*optimize*)
   (declare (type jso obj)
            (type (function (t t) t) func))
   (loop :for (key . val) :in (jso-alist obj)

@@ -30,13 +30,15 @@
 (defgeneric write-json-element (element stream depth)
 
   (:method (element stream depth)
-    (declare (ignore stream))
+    (declare (ignore stream depth))
     (raise 'json-write-error "Can not write object of type ~A as JSON." (type-of element)))
 
   (:method ((element integer) stream depth)
+    (declare (ignorable depth))
     (write element :stream stream))
 
   (:method ((element real) stream depth)
+    (declare (ignorable depth))
     (format stream "~,,,0,,,'eE" element))
 
   (:documentation "Method used for writing values of a specific type.
@@ -54,7 +56,8 @@
   (values))
 
 (defmethod write-json-element ((element symbol) stream depth)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
+  (declare (ignorable depth))
   (ecase element
     ((nil) (write-string "[]" stream))
     ((t :true) (write-string "true" stream))
@@ -64,40 +67,41 @@
 (defmethod write-json-element ((element string) stream depth)
   ;; (declare #.*optimize*
   ;;          (type stream stream))
+  (declare (ignorable depth))
   (let ((element (coerce element 'simple-string)))
     (write-char #\" stream)
     (loop :for prev := nil :then ch
-       :for ch :of-type character :across element :do
-       (let ((code (char-code ch)))
-         (declare (fixnum code))
-         (if (or (<= 0 code #x1f)
-                 (<= #x7f code #x9f))
-             (case code
-               (#.(char-code #\backspace) (write-string "\\b" stream))
-               (#.(char-code #\newline)   (write-string "\\n" stream))
-               (#.(char-code #\return)    (write-string "\\r" stream))
-               (#.(char-code #\page)      (write-string "\\f" stream))
-               (#.(char-code #\tab)       (write-string "\\t" stream))
-               (t                         (format stream "\\u~4,'0x" code)))
-             (case code
-               (#.(char-code #\/)  (when (and (eql prev #\<) *script-tag-hack*)
-                                     (write-char #\\ stream))
-                                   (write-char ch stream))
-               (#.(char-code #\\)  (write-string "\\\\" stream))
-               (#.(char-code #\")  (write-string "\\\"" stream))
-               (t                  (cond ((< #x1F code #x7F)
-                                          (write-char ch stream))
-                                         ((and (< #x9F code #x10000)
-                                               (not *output-literal-unicode*))
-                                          (format stream "\\u~4,'0x" code))
-                                         ((and (< #x10000 code #x1FFFF)
-                                               (not *output-literal-unicode*))
-                                          (let ((c (- code #x10000)))
-                                            (format stream "\\u~4,'0x\\u~4,'0x"
-                                                    (logior #xD800 (ash c -10))
-                                                    (logior #xDC00 (logand c #x3FF)))))
-                                         (t
-                                          (write-char ch stream))))))))
+          :for ch :of-type character :across element :do
+            (let ((code (char-code ch)))
+              (declare (fixnum code))
+              (if (or (<= 0 code #x1f)
+                      (<= #x7f code #x9f))
+                  (case code
+                    (#.(char-code #\backspace) (write-string "\\b" stream))
+                    (#.(char-code #\newline)   (write-string "\\n" stream))
+                    (#.(char-code #\return)    (write-string "\\r" stream))
+                    (#.(char-code #\page)      (write-string "\\f" stream))
+                    (#.(char-code #\tab)       (write-string "\\t" stream))
+                    (t                         (format stream "\\u~4,'0x" code)))
+                  (case code
+                    (#.(char-code #\/)  (when (and (eql prev #\<) *script-tag-hack*)
+                                          (write-char #\\ stream))
+                     (write-char ch stream))
+                    (#.(char-code #\\)  (write-string "\\\\" stream))
+                    (#.(char-code #\")  (write-string "\\\"" stream))
+                    (t                  (cond ((< #x1F code #x7F)
+                                               (write-char ch stream))
+                                              ((and (< #x9F code #x10000)
+                                                    (not *output-literal-unicode*))
+                                               (format stream "\\u~4,'0x" code))
+                                              ((and (< #x10000 code #x1FFFF)
+                                                    (not *output-literal-unicode*))
+                                               (let ((c (- code #x10000)))
+                                                 (format stream "\\u~4,'0x\\u~4,'0x"
+                                                         (logior #xD800 (ash c -10))
+                                                         (logior #xDC00 (logand c #x3FF)))))
+                                              (t
+                                               (write-char ch stream))))))))
     (write-char #\" stream)))
 
 #+nil
@@ -107,7 +111,7 @@
 ;; ==> "\"Test \\uD834\\uDD1E \\u21D3 \\t<tag>\\n<\\/tag>\""
 
 (defmethod write-json-element ((element hash-table) stream depth)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (write-json-element
    (make-jso :alist (loop :for key :being :the :hash-keys :of element :using (hash-value val)
                           :collect (cons key val)))
@@ -127,13 +131,18 @@
           (make-string space-count :initial-element #\space)))
   (gethash space-count *whitespace-cache*))
 
+(declaim (inline write-whitespace))
 (defun write-whitespace (stream is-pretty depth)
+  (declare #.*optimize*
+           (type stream stream)
+           (type t is-pretty)
+           (type integer depth))
   (when (eq :pretty is-pretty)
     (write-char #\Newline stream)
     (write-string (indent-string (indent-for-depth depth)) stream)))
 
 (defmethod write-json-element ((element jso) stream depth)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
   (let ((is-pretty *print-object-style*))
     (write-char #\{ stream)
     (write-whitespace stream is-pretty (1+ depth))
@@ -151,13 +160,30 @@
     (write-char #\} stream)))
 
 (defmethod write-json-element ((element list) stream depth)
-  ;; (declare #.*optimize*)
+  (declare #.*optimize*)
 
   (let ((is-pretty *print-object-style*))
     (write-char #\[ stream)
     (write-whitespace stream is-pretty (1+ depth))
     (loop
       :for object :in element
+      :for first = t :then nil
+      :when (not first) :do
+        (write-char #\, stream)
+        (write-whitespace stream is-pretty (1+ depth))
+      :do
+         (write-json-element object stream (1+ depth)))
+    (write-whitespace stream is-pretty depth)
+    (write-char #\] stream)))
+
+(defmethod write-json-element ((element array) stream depth)
+  (declare #.*optimize*)
+
+  (let ((is-pretty *print-object-style*))
+    (write-char #\[ stream)
+    (write-whitespace stream is-pretty (1+ depth))
+    (loop
+      :for object :across element
       :for first = t :then nil
       :when (not first) :do
         (write-char #\, stream)
@@ -197,5 +223,5 @@ If newline, start with an empty line."
                     spaces
                     (+ first-indent name-width)
                     value-width)
-      :do
-         (format stream fstring name (fj:at-list obj (ensure-list keys)))))
+    :do
+       (format stream fstring name (fj:at-list obj (ensure-list keys)))))

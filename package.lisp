@@ -84,6 +84,7 @@
 
          #:*allow-comments*
          #:*decode-objects-as*
+         #:*decode-lists-as*
          #:*output-literal-unicode*
          #:*pretty-print-indent-size*
          #:*print-object-style*

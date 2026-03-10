@@ -110,3 +110,45 @@
                    (print-object obj3 outs))))
 
     ))
+
+(test array-reading
+  (let* ((fj:*decode-lists-as* :array)
+         (array (fj:read-json "[3,4,5,4]")))
+    (is (typep array '(simple-vector 4)))
+    (loop :for val :across #(3 4 5 4)
+          :for i :from 0
+          :do
+             (is (= val (aref array i))))))
+
+(test comments
+  (let* ((fj:*allow-comments* t)
+         (obj (fj:read-json "{ // testing
+\"foo\": 34, \"what\": // skip it
+42
+}")))
+    (is (= 34 (at obj :foo)))
+    (is (= 42 (at obj :what)))
+    )
+  (let* ((fj:*allow-comments* t)
+         (fj:*decode-lists-as* :array)
+         (obj (fj:read-json "
+// This is // a comment //
+{ // testing another comment
+\"foo\": 34, \"what\": // skip it
+42,
+\"bar\": [5 // comment
+, // stand alone comma!
+5,3,// uh-oh
+4],
+\"strange\": \"//trouble\"
+}")))
+    (is (= 34 (at obj :foo)))
+    (is (= 42 (at obj :what)))
+    (is (= 5 (at obj :bar 0)))
+    (is (= 5 (at obj :bar 1)))
+    (is (= 3 (at obj :bar 2)))
+    (is (= 4 (at obj :bar 3)))
+    (is (string= "//trouble" (at obj :strange)))
+    )
+
+  )

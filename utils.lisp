@@ -8,6 +8,30 @@
  keys when it gets to a non-jso object.  Otherwise the remaining keys are return
  in a list."))
 
+(declaim (inline ensure-list))
+(defun ensure-list (list)
+  "If LIST is a list, it is returned. Otherwise returns the list designated by LIST."
+  (declare #.*optimize*)
+  (if (listp list)
+      list
+      (list list)))
+
+(declaim (inline next-thing))
+(defun next-thing (json idx)
+  "Return json[idx] if json is a list or array"
+  (declare (optimize (speed 1))
+           (type (or list vector jso) json))
+  (let ((xformed (key-to-string idx)))
+    (etypecase xformed
+      (string (getjso xformed json))
+      (integer
+       (if (< idx (length json))
+           (etypecase json
+             (list (values (nth xformed json) t))
+             (array (values (aref json xformed) t)))
+           (values  nil nil)))
+      (list (at-list json xformed)))))
+
 (declaim (inline  jsoλ at jso-from-alist (setf at)))
 (declaim (notinline at-list (setf at-list)))
 
@@ -16,7 +40,7 @@
   (loop
     :with val = jso
     :with present = t
-    :for (key . remainder) :on (ensure-list keys)
+    :for (key . nil) :on (ensure-list keys)
     :while (and present
                 key)
     :do
@@ -47,6 +71,7 @@
 (defun (setf at-list) (val jso keys)
   "Implementation for (setf at) - set a nested JSON value.  setf into a list is
 not supported, only string and symbol keys are supported."
+  (declare #.*optimize*)
   (let* ((lkeys (ensure-list keys))
          (key (car lkeys))
          (key-string (key-to-string key))
@@ -72,20 +97,9 @@ not supported, only string and symbol keys are supported."
        (prog1 val (push (cons key-string (make-nested-object val (cdr lkeys)))
                         (jso-alist jso)))))))
 
-(declaim (inline next-thing))
-(defun next-thing (json idx)
-  (declare (optimize (speed 2)))
-  (let ((xformed (key-to-string idx)))
-    (etypecase xformed
-      (string (getjso xformed json))
-      (integer
-       (if (< idx (length json))
-           (values (nth xformed json) t)
-           (values  nil nil)))
-      (list (at-list json xformed)))))
-
 (defun make-nested-object (value keys)
   "(make-nested-object 42 '(:foo :bar :wat)) -> { foo: { bar: { wat: 42 } } }"
+  (declare #.*optimize*)
   (loop
     :for json = value :then (jso key-string json)
     :for key :in (reverse keys)
@@ -96,13 +110,10 @@ not supported, only string and symbol keys are supported."
 
 (defun jsoλ (&rest keys)
   "Return a function that will extract the given keys from a JSON object."
+  (declare #.*optimize*)
   (lambda (jso) (at-list jso keys)))
 
-
-
-
-
-
+(declaim (inline at))
 (defun at (jso &rest keys)
   "Return nested JSON values:
 (let* ((json (js:read-json \"
@@ -114,16 +125,17 @@ not supported, only string and symbol keys are supported."
 }}}}}\")))
   (js:at json :a :b :c \"d\" :e)
 42"
+
   (at-list jso keys))
 
 (defmacro at* (jso &rest keys)
-  "Macro version of v"
-  (loop
-    :for so-far = jso :then this
-    :for key :in keys
-    :for real-key = (key-to-string-m key)
-    :for this = `(getjso ,real-key ,so-far)
-    :finally (return this)))
+  "Macro version of at"
+  `(loop
+     :for so-far = ,jso :then this
+     :for key :in ,keys
+     :for real-key = (key-to-string-m key)
+     :for this = `(getjso ,real-key ,so-far)
+     :finally (return this)))
 
 (defun (setf at) (val jso &rest keys)
   "Return nested JSON values:
@@ -137,6 +149,7 @@ not supported, only string and symbol keys are supported."
 }}}}}\")))
   (setf (js:at json :a :d :c \"d\" :e) 12)
 12"
+  (declare #.*optimize*)
   (declare (type jso jso))
   (setf (at-list jso keys) val))
 
@@ -153,10 +166,12 @@ not supported, only string and symbol keys are supported."
        (temp (js:vλ :a :b :c)))
     (funcall temp :d :e))
 42"
+  (declare #.*optimize*)
   (lambda (&rest more-keys)
+    (declare #.*optimize*)
     (apply #'at jso (concatenate 'list
-                                keys
-                                more-keys))))
+                                 keys
+                                 more-keys))))
 (defmacro atλ* (jso &rest keys)
   "Macro version of atλ"
   (let ((inner (loop
@@ -165,16 +180,21 @@ not supported, only string and symbol keys are supported."
                  :for this = (list 'getjso `(key-to-string-m ,key) so-far)
                  :finally (return this))))
     `(let ((inval ,@inner))
+       (declare #.*optimize*)
        (lambda (&rest more-keys)
          (apply #'at inval more-keys)))))
 
+(declaim (inline jso-keys jso-values jso-from-alist key-count))
 (defun jso-keys (obj)
   "Return the keys from obj."
+  (declare #.*optimize*)
   (loop :for (key . nil) :in (jso-alist obj)
         :collecting key))
 
+
 (defun jso-values (obj)
   "Return the values from obj."
+  (declare #.*optimize*)
   (loop :for (nil . val) :in (jso-alist obj)
         :collecting val))
 
@@ -210,28 +230,22 @@ not supported, only string and symbol keys are supported."
              key-names)
          ,@body))))
 
-(defun ensure-list (list)
-  "If LIST is a list, it is returned. Otherwise returns the list designated by
-LIST."
-  (if (listp list)
-      list
-      (list list)))
-
 (defun mapping (&rest mappings)
+  (declare #.*optimize*)
   (loop :for (first second) :on mappings :by #'cddr
-                :collecting
-                (cons (ensure-list first) (ensure-list second))))
+        :collecting
+        (cons (ensure-list first) (ensure-list second))))
 
 (defmacro deftransformer (from to)
-  (declare (optimize (speed 2) (safety 0) (debug 0)))
+  (declare #.*optimize*)
   (let ((sets (loop
-                :for old-key :in from 
+                :for old-key :in from
                 :for new-key :in to
                 :collecting `(setf (at-list rval ,new-key)
                                    (at-list obj ,old-key)))))
 
     `(lambda (obj)
-       (declare (optimize (speed 3) (safety 0) (debug 0)))
+       (declare #.*optimize*)
        (let ((rval (jso)))
          ,@sets
          rval))))
@@ -241,7 +255,7 @@ LIST."
 (defun transform (obj from to)
   "Create a new JSON object where the keys in `from` are moved to corresponding new keys in the new object.
 (transform
-   { 
+   {
       \"foo\": {
          \"bar\": 42,
          \"foo\": 67
@@ -277,6 +291,7 @@ LIST."
 (defmacro def-jso-type (type-name keys)
   "Define function #'<type-name>-p and type <type-name> to represent JSON
 objects with specified keys."
+  (declare #.*optimize*)
   (let ((is-name (intern (string-upcase (format nil "~a-p" type-name))))
         (key-var (gensym "keys")))
     `(progn

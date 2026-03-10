@@ -1,4 +1,3 @@
-
 (asdf:defsystem
     :functional-json
 
@@ -14,6 +13,7 @@
 
   :components ((:file "package")
                (:file "functional-json")
+               (:file "utils")
                (:file "readers")
                (:file "writers")
-               (:file "utils")))
+               ))
