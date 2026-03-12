@@ -33,6 +33,7 @@ Field names can be "strings", :keywords, or 'symbols.
     (format t "Total: ~a~%" total-size))
 #+END_SRC
 
+
 ** Use `fj:jsoλ` to create access functions.
 
 #+BEGIN_SRC lisp :results output
@@ -136,28 +137,25 @@ Declare Common Lisp types for JSON objects with certain keys.
   ;; An automobile has a manufacturer with a name and country, a model name, and
   ;; an engine
   (fj:def-jso-type automobile
-      '((:manufacturer :name)
-        (:manufacturer :country)
-        :model
-        :engine))
+      ((:manufacturer :name)
+       (:manufacturer :country)
+       :model
+       :engine))
   ;; An ice automobile has an engine with a cylinder count and displacement
   (fj:def-jso-type ice-automobile
-      '((:engine :cylinder-count)
-        (:engine :displacement)))
+      ((:engine :cylinder-count)
+       (:engine :displacement)))
   ;; An EV automobile has an engine with watts and volts
   (fj:def-jso-type ev-automobile
-      '((:engine :watts)
-        (:engine :volts)))
+      ((:engine :watts)
+       (:engine :volts)))
 
   ;; Check JSON types using typecase
   (defun what-is-it (car)
     (typecase car
-      (ev-automobile
-       "Electric car")
-      (ice-automobile
-       "Combustion car")
-      (automobile
-       "Just a car")))
+      (ev-automobile "Electric car")
+      (ice-automobile "Combustion car")
+      (automobile "Just a car")))
 
   (let ((bmw (fj:read-json "
     {
@@ -210,5 +208,5 @@ One possibility is to jso a class with getjso and (setf getjso) methods.
 ** License
 BSD
 
-Copyright (c) 2025 Jeremiah LaRocco <jeremiah_larocco@fastmail.com>
+Copyright (c) 2026 Jeremiah LaRocco <jeremiah_larocco@fastmail.com>
 Copyright (c) Streamtech & Marijn Haverbeke (marijnh@gmail.com)

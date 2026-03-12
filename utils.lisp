@@ -296,7 +296,7 @@ objects with specified keys."
         (key-var (gensym "keys")))
     `(progn
        (defun ,is-name (val)
-         (let ((,key-var (list ,@keys)))
+         (let ((,key-var (quote  (,@keys))))
            (declare (type jso val))
            (loop :with has-key = t
                  :with ignored = nil
