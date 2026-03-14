@@ -20,7 +20,7 @@
   :array means decode into an array")
 
 (defparameter *allow-comments* nil
-  "Non-nil means ignore comments when parsing.")
+  "Non-nil means ignore C++ style // comments when parsing.")
 
 
 (define-condition json-error (simple-error) ())
@@ -29,8 +29,6 @@
 (define-condition json-write-error (json-error) ())
 (define-condition json-type-error (json-error) ())
 
-(defun raise (type format &rest args)
-  (error type :format-control format :format-arguments args))
 
 (defvar *reading-slot-name* nil)
 
@@ -51,7 +49,7 @@
                  ((and *allow-comments* char (char= #\/ char))
                   (read-char stream)
                   (unless (char= #\/ (peek-char nil stream nil))
-                    (raise 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
+                    (error 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
                   ;; Skip the second slash.
                   (read-char stream)
                   (loop :while (not (member (peek-char nil stream nil)
@@ -78,11 +76,12 @@
              ;; refer to ECMA-404, strings.
              (flet ((read-code-point ()
                       (the fixnum
-                           (loop :for pos :from 0 :below 4
+                           (loop :for pos :of-type fixnum :from 0 :below 4
                                  :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
-                                 :for digit := (digit-char-p (read-char stream) 16)
-                                 :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
-                                 :sum (* digit weight))))
+                                 :for digit  := (digit-char-p (read-char stream) 16)
+                                 :do (unless digit (error 'json-parse-error "Invalid unicode constant in string."))
+                                 :sum (* digit weight) :into total :of-type fixnum
+                                 :finally (return total))))
                     (expect-char (char)
                       (let ((c (read-char stream)))
                         (assert (char= char c) (c)
@@ -110,13 +109,13 @@
                 :for next :of-type character := (read-char stream)
                 :until (eql next quote)
                 :do (write-char (interpret next) out))
-        (end-of-file () (raise 'json-eof-error "Encountered end of input inside string constant."))))))
+        (end-of-file () (error 'json-eof-error "Encountered end of input inside string constant."))))))
 
 (defun read-json-element (stream)
   (declare #.*optimize*)
   (skip-whitespace stream)
   (case (peek-char nil stream nil :eof)
-    (:eof (raise 'json-eof-error "Unexpected end of input."))
+    (:eof (error 'json-eof-error "Unexpected end of input."))
     ((#\" #\') (read-json-string stream))
     (#\[ (read-json-list stream))
     (#\{ (read-json-object stream))
@@ -139,12 +138,12 @@
       (let ((next (peek-char nil stream nil #\nul)))
         (declare (type character next))
         (when (eql next #\nul)
-          (raise 'json-eof-error "Encountered end of input inside ~A." obj-name))
+          (error 'json-eof-error "Encountered end of input inside ~A." obj-name))
         (when (eql next end-char)
           (read-char stream)
           (return))
         (when finished
-          (raise 'json-parse-error "Comma or end of ~A expected, found '~A'" obj-name next)))
+          (error 'json-parse-error "Comma or end of ~A expected, found '~A'" obj-name next)))
       (funcall gather-func)
       (skip-whitespace stream)
       (if (eql (peek-char nil stream nil) #\,)
@@ -171,10 +170,10 @@
         (lambda ()
           (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
             (unless (or (stringp slot-name) (numberp slot-name))
-              (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+              (error 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
             (skip-whitespace stream)
             (when (not (eql (read-char stream nil) #\:))
-              (raise 'json-parse-error "Colon expected after '~a'." slot-name))
+              (error 'json-parse-error "Colon expected after '~a'." slot-name))
             (push (cons slot-name (read-json-element stream)) accum))))
        (if (eq *decode-objects-as* :jso)
            (make-jso :alist (nreverse accum))
@@ -186,20 +185,21 @@
          (lambda ()
            (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
              (unless (or (stringp slot-name) (numberp slot-name))
-               (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+               (error 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
              (skip-whitespace stream)
              (when (not (eql (read-char stream nil) #\:))
-               (raise 'json-parse-error "Colon expected after '~a'." slot-name))
+               (error 'json-parse-error "Colon expected after '~a'." slot-name))
              (setf (gethash slot-name accum) (read-json-element stream)))))
         accum))))
 
 (defun looks-like-a-number (string)
   (declare #.*optimize*)
-  (let ((string (coerce string 'simple-string)))
-    (every (lambda (char)
-             (or (digit-char-p char)
-                 (member char '(#\e #\E #\. #\- #\+))))
-           string)))
+  (declare (type (or sequence (array character (*)) simple-string string)))
+  ;;xxlet ((string (coerce string 'simple-string)))
+  (every (lambda (char)
+           (or (digit-char-p char)
+               (member char '(#\e #\E #\. #\- #\+))))
+         string))
 
 (defun read-json-atom (stream)
   (declare #.*optimize*
@@ -224,14 +224,14 @@
                            (or (alphanumericp c) (eql c #\_) (eql c #\$)))
                          accum))
              accum)
-            (t (raise 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
+            (t (error 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
 
 (defmethod read-json ((in stream) &optional (junk-allowed-p t))
   (declare #.*optimize*)
   (let ((value (read-json-element in)))
     (skip-whitespace in)
     (unless (or junk-allowed-p (at-eof in))
-      (raise 'json-parse-error "Unused characters at end of input."))
+      (error 'json-parse-error "Unused characters at end of input."))
     value))
 
 (defmethod read-json ((in string) &optional (junk-allowed-p nil))
@@ -253,4 +253,4 @@ Raises a json-type-error when the type is wrong."
   (let ((val (read-json source)))
     (if (typep val type)
         val
-        (raise 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))
+        (error 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))

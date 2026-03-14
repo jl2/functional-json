@@ -4,7 +4,7 @@
 ;; TODO: maybe permanently and allow user to set at load time
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *optimize*
-    '(optimize (speed 1) (safety 0) (space 3) (debug 1) (compilation-speed 0))))
+    '(optimize (speed 3) (safety 1) (space 0) (debug 1) (compilation-speed 0))))
 
 
 ;; Types that might be useful when checking the type of input.
@@ -37,8 +37,7 @@
   `(typecase ,key
     (string ,key)
     (symbol (string-downcase (symbol-name ,key)))
-    (t ,key))
-  )
+    (t ,key)))
 
 (defun jso (&rest fields)
   "Create a JS object. Arguments should be alternating labels and values."
@@ -47,7 +46,7 @@
                          :collect (cons key val))))
 
 (defun o (&rest fields)
-  "Create a JS object. Arguments should be alternating labels and values."
+  "Create a JS object. Arguments should be alternating labels and values. "
   (declare #.*optimize*)
   (make-jso :alist (loop :for (key val) :on fields :by #'cddr
                          :collect (cons (key-to-string key) val))))
@@ -67,11 +66,12 @@
 
 
 ;; A hash-table-like interface for JS objects.
-(defun getjso (key map)
-  "Fetch a value from a JS object. Returns a second value like
-gethash."
+(defun getjso (key obj)
+  "Return the value stored at key in obj, or nil.  Returns a second value of
+t or nil indicating if the value existed in the object.
+Unlike `at`, key must be a string."
   (declare #.*optimize*)
-  (let ((pair (assoc key (jso-alist map) :test #'string=)))
+  (let ((pair (assoc key (jso-alist obj) :test #'string=)))
     (values (cdr pair) (and pair t))))
 
 (defun (setf getjso) (val key map)
@@ -84,15 +84,16 @@ gethash."
           (push (cons key val)
                 (jso-alist map))))))
 
-(defun mapjso (func map)
-  "Iterate over the key/value pairs in a JS object."
-  (declare #.*optimize*)
-  (loop :for (key . val) :in (jso-alist map)
+(defun mapjso (func obj)
+  "Call (func key value) for each key/value pair in obj."
+  (declare #.*optimize*
+           (type (function (t t) t) func))
+  (loop :for (key . val) :in (jso-alist obj)
         :do (funcall func key val)))
 
 (defun collect (func obj)
-  "Returns a list with the results of calling func on each key/value pair in a JS object.
-Like mapjso, but collects func's return values."
+  "Call (func key value) for each key/value pair in obj and collect the results in a list.
+Like mapjso, but collects the values returned by func."
   (declare #.*optimize*)
   (declare (type jso obj)
            (type (function (t t) t) func))
