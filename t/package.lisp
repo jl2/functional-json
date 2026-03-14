@@ -152,3 +152,61 @@
     )
 
   )
+
+(test typing
+  ;; Declare some JSON types
+  ;; An automobile has a manufacturer with a name and country, a model name, and
+  ;; an engine
+  (fj:def-jso-type automobile
+      ((:manufacturer :name)
+       (:manufacturer :country)
+       :model
+       :engine))
+  ;; An ice automobile has an engine with a cylinder count and displacement
+  (fj:def-jso-type ice-automobile
+      ((:engine :cylinder-count)
+       (:engine :displacement)))
+  ;; An EV automobile has an engine with watts and volts
+  (fj:def-jso-type ev-automobile
+      ((:engine :watts)
+       (:engine :volts)))
+
+  ;; Check JSON types using typecase
+  (defun what-is-it (car)
+    (typecase car
+      (ev-automobile "Electric car")
+      (ice-automobile "Combustion car")
+      (automobile "Just a car")))
+
+  (let ((bmw (fj:read-json "
+    {
+      \"manufacturer\": {
+         \"name\": \"BMW\",
+         \"country\": \"Germany\"
+      },
+      \"model\": \"M3\",
+      \"engine\": {
+         \"cylinder-count\": 6,
+         \"displacement\": 6.0
+      }
+    }"))
+        (tesla (fj:read-json "
+  {
+    \"manufacturer\": {
+       \"name\": \"Tesla\",
+       \"country\": \"usa\"
+    },
+    \"model\": \"Whatever\",
+    \"engine\": {
+       \"watts\": 6,
+       \"volts\": 120.0
+    }
+  }")))
+    (is (typep bmw 'automobile))
+    (is (typep bmw 'ice-automobile))
+    (is (not (typep bmw 'ev-automobile)))
+    (is (string=  "Combustion car" (what-is-it bmw)))
+    (is (typep tesla 'automobile))
+    (is (not (typep tesla 'ice-automobile)))
+    (is (typep tesla 'ev-automobile))
+    (is (string= "Electric car" (what-is-it tesla)))))
