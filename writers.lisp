@@ -28,7 +28,6 @@
   (write-json object stream))
 
 (defgeneric write-json-element (element stream depth)
-
   (:method (element stream depth)
     (declare (ignore stream depth))
     (raise 'json-write-error "Can not write object of type ~A as JSON." (type-of element)))
@@ -56,6 +55,7 @@
   (values))
 
 (defmethod write-json-element ((element symbol) stream depth)
+  "Write special case symbols to stream as JSON."
   (declare #.*optimize*)
   (declare (ignorable depth))
   (ecase element
@@ -118,14 +118,24 @@
    stream
    depth))
 
+(declaim (inline indent-for-depth))
 (defun indent-for-depth (depth)
+  "Compute the indentation amount for the specified nesting depth.
+Artificial limit of 1000000 levels deep."
+  (declare #.*optimize*)
+  ;; Dare I say JSON nesting more than 8192 levels is enough for anybody?
+  (declare (type (integer 0 1000000) depth *pretty-print-indent-size*))
   (* (max 0 depth)
      *pretty-print-indent-size*))
 
 (defparameter *whitespace-cache* (make-hash-table :size 32)
   "Cache indentation whitespace strings so they don't need to be recreated.")
 
+(declaim (inline indent-string))
 (defun indent-string (space-count)
+  "Return a string made of the specified number of spaces.  Memoizes the strings."
+  (declare #.*optimize*)
+  (declare (type fixnum space-count))
   (when (null (gethash space-count *whitespace-cache*))
     (setf (gethash space-count *whitespace-cache*)
           (make-string space-count :initial-element #\space)))
@@ -133,6 +143,7 @@
 
 (declaim (inline write-whitespace))
 (defun write-whitespace (stream is-pretty depth)
+  "Used by write-json-element to print the correct whitespace."
   (declare #.*optimize*
            (type stream stream)
            (type t is-pretty)
@@ -142,7 +153,10 @@
     (write-string (indent-string (indent-for-depth depth)) stream)))
 
 (defmethod write-json-element ((element jso) stream depth)
+  "Write a JSON object to stream at the specified nesting depth."
   (declare #.*optimize*)
+  (declare (type fixnum depth)
+           (type stream stream))
   (let ((is-pretty *print-object-style*))
     (write-char #\{ stream)
     (write-whitespace stream is-pretty (1+ depth))
@@ -160,8 +174,10 @@
     (write-char #\} stream)))
 
 (defmethod write-json-element ((element list) stream depth)
+  "Write a JSON list to stream at the specified nesting depth."
   (declare #.*optimize*)
-
+  (declare (type fixnum depth)
+           (type stream stream))
   (let ((is-pretty *print-object-style*))
     (write-char #\[ stream)
     (write-whitespace stream is-pretty (1+ depth))
@@ -177,7 +193,12 @@
     (write-char #\] stream)))
 
 (defmethod write-json-element ((element array) stream depth)
-  (declare #.*optimize*)
+  "Write an array to stream as a JSON list at the specified nesting depth."
+  ;; Use different optimize settings in this function to get a "clean" compile.
+  ;; Speed 3 complains about the unknown type of the objects in the array but
+  (declare (optimize (speed 1)  (safety 1) (space 0) (debug 1) (compilation-speed 0))
+           (type fixnum depth)
+           (type stream stream))
 
   (let ((is-pretty *print-object-style*))
     (write-char #\[ stream)

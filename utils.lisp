@@ -2,23 +2,17 @@
 
 ;; Utilities
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defparameter *fail-on-extra-keys* nil
-    "If non-nil then v, vλ, and related functions will fail if there are extra
- keys when it gets to a non-jso object.  Otherwise the remaining keys are return
- in a list."))
-
 (declaim (inline ensure-list))
-(defun ensure-list (list)
-  "If LIST is a list, it is returned. Otherwise returns the list designated by LIST."
+(defun ensure-list (obj)
+  "If obj is a list, it is returned. Otherwise return a single element list containing obj."
   (declare #.*optimize*)
-  (if (listp list)
-      list
-      (list list)))
+  (if (listp obj)
+      obj
+      (list obj)))
 
 (declaim (inline next-thing))
 (defun next-thing (json idx)
-  "Return json[idx] if json is a list or array"
+  "Return json[idx] if json is a list or array, errors if json isn't a list, vector, or json object, or if idx isn't a string, integer, or list of keys."
   (declare (optimize (speed 1))
            (type (or list vector jso) json))
   (let ((xformed (key-to-string idx)))
@@ -40,11 +34,16 @@
   (loop
     :with val = jso
     :with present = t
-    :for (key . nil) :on (ensure-list keys)
+    :for (key . remainder) :on (ensure-list keys)
     :while (and present
                 key)
     :do
        (setf (values val present) (next-thing val key))
+    :when (and (not present)
+               remainder
+               *fail-on-extra-keys*)
+      :do
+         (raise 'json-index-error "Too many keys in at-list for object ~a and keys ~a" jso keys)
     :finally
        (return
          (values val present)))
@@ -66,7 +65,7 @@
   ;;         (not *fail-on-extra-keys*))
   ;;    (values jso keys))
   ;;   (t
-  ;;    (error "Too many keys in at-list")))
+  ;;    (raise "Too many keys in at-list")))
   )
 (defun (setf at-list) (val jso keys)
   "Implementation for (setf at) - set a nested JSON value.  setf into a list is
@@ -132,7 +131,7 @@ not supported, only string and symbol keys are supported."
   "Macro version of at"
   `(loop
      :for so-far = ,jso :then this
-     :for key :in ,keys
+     :for key :in (quote ,keys)
      :for real-key = (key-to-string-m key)
      :for this = `(getjso ,real-key ,so-far)
      :finally (return this)))
@@ -299,11 +298,23 @@ objects with specified keys."
          (let ((,key-var (quote  (,@keys))))
            (declare (type jso val))
            (loop :with has-key = t
-                 :with ignored = nil
                  :while has-key
-                 :for key in ,key-var
-                 :do (setf (values ignored has-key) (at-list val (ensure-list key)))
+                 :for key :in ,key-var
+                 :do (multiple-value-bind (val present) (at-list val (ensure-list key))
+                       (declare (ignorable val))
+                       (setf has-key present))
                  :finally (return has-key))))
        (deftype ,type-name ()
          '(and jso
            (satisfies ,is-name))))))
+
+(defun read-json-as-type (source type)
+  "Read a JSON value and assert the result to be of a given type.
+The type should have been defined with def-jso-type.
+Raises a json-type-error when the type is wrong."
+  (declare (optimize (speed 1) (safety 1) (space 0) (debug 1) (compilation-speed 0))
+           (type symbol type))
+  (let ((val (read-json source)))
+    (if (typep val type)
+        val
+        (raise 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))

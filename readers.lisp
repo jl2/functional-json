@@ -7,49 +7,29 @@
 (defgeneric read-json (in &optional junk-allowed-p)
   (:documentation "Read a JSON-encoded value from an input source."))
 
-
-(defparameter *decode-objects-as* :jso
-  "Valid values: :jso :hashtable
-  Controls how js objects should be decoded. :jso means decode to internal struct which
-  can be processed by getjso, mapjso etc. :hashtable means decode as hash tables.")
-
-(defparameter *decode-lists-as* :list
-  "Valid values: :list :array
-  Controls how js arrays should be decoded.
-  :list means decode into a list.
-  :array means decode into an array")
-
-(defparameter *allow-comments* nil
-  "Non-nil means ignore C++ style // comments when parsing.")
-
-
-(define-condition json-error (simple-error) ())
-(define-condition json-parse-error (json-error) ())
-(define-condition json-eof-error (json-parse-error) ())
-(define-condition json-write-error (json-error) ())
-(define-condition json-type-error (json-error) ())
-
-
-(defvar *reading-slot-name* nil)
-
 (defun is-whitespace (char)
-  (member char '(#\space #\newline #\return #\tab)))
+  "Check if char is whitespace."
+  #+sbcl (sb-unicode:whitespace-p char)
+  #-sbcl(member char '(#\space #\newline #\return #\tab)))
 
 (defun ends-atom (char)
+  "Returns non-nil if char ends a JSON atom, nil otherwise."
   (or (is-whitespace char) (member char '(#\) #\] #\} #\, #\:))))
 
 
 (defun skip-whitespace (stream)
+  "Skip whitespace (and C++ style comments if *allow-comments*) and read to the first
+JSON data."
   (declare #.*optimize*)
   (loop :for char := (peek-char nil stream nil)
         :while (cond
-                 ((is-whitespace char) (read-char stream))
+                 ((and char (is-whitespace char)) (read-char stream))
 
                  ;; Skip comments
                  ((and *allow-comments* char (char= #\/ char))
                   (read-char stream)
                   (unless (char= #\/ (peek-char nil stream nil))
-                    (error 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
+                    (raise 'json-parse-error "Unexpected input '/~A'." (read-char stream)))
                   ;; Skip the second slash.
                   (read-char stream)
                   (loop :while (not (member (peek-char nil stream nil)
@@ -59,10 +39,12 @@
                   ))))
 
 (defun at-eof (stream)
+  "Check if stream is at its end.  If non-nil, there is data to read."
   (eql (peek-char nil stream nil :eof) :eof))
 
 (declaim (inline read-json-element read-json-string))
 (defun read-json-string (stream)
+  "Read a JSON UTF-8 string value from stream."
   (declare #.*optimize*)
   (labels ((interpret (char)
              (if (eql char #\\)
@@ -79,7 +61,7 @@
                            (loop :for pos :of-type fixnum :from 0 :below 4
                                  :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
                                  :for digit  := (digit-char-p (read-char stream) 16)
-                                 :do (unless digit (error 'json-parse-error "Invalid unicode constant in string."))
+                                 :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
                                  :sum (* digit weight) :into total :of-type fixnum
                                  :finally (return total))))
                     (expect-char (char)
@@ -109,13 +91,14 @@
                 :for next :of-type character := (read-char stream)
                 :until (eql next quote)
                 :do (write-char (interpret next) out))
-        (end-of-file () (error 'json-eof-error "Encountered end of input inside string constant."))))))
+        (end-of-file () (raise 'json-eof-error "Encountered end of input inside string constant."))))))
 
 (defun read-json-element (stream)
+  "Read the next JSON entity from stream."
   (declare #.*optimize*)
   (skip-whitespace stream)
   (case (peek-char nil stream nil :eof)
-    (:eof (error 'json-eof-error "Unexpected end of input."))
+    (:eof (raise 'json-eof-error "Unexpected end of input."))
     ((#\" #\') (read-json-string stream))
     (#\[ (read-json-list stream))
     (#\{ (read-json-object stream))
@@ -123,10 +106,12 @@
 
 
 
-;;; (fs:read-json-from-string "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E.\"")
-
 (declaim (inline gather-comma-separated))
 (defun gather-comma-separated (stream end-char obj-name gather-func)
+  "Call #'gather-func on each comma separated value until reaching end-char.
+obj-name is used for printing errors, and typically specifies the type of object."
+  ;; TODO: Should this be a macro?
+  ;; It feels like this is critical functionality, and I'm not sure it optimizes well
   (declare #.*optimize*)
   (declare (type character end-char)
            (type (function () t) gather-func))
@@ -138,12 +123,12 @@
       (let ((next (peek-char nil stream nil #\nul)))
         (declare (type character next))
         (when (eql next #\nul)
-          (error 'json-eof-error "Encountered end of input inside ~A." obj-name))
+          (raise 'json-eof-error "Encountered end of input inside ~A." obj-name))
         (when (eql next end-char)
           (read-char stream)
           (return))
         (when finished
-          (error 'json-parse-error "Comma or end of ~A expected, found '~A'" obj-name next)))
+          (raise 'json-parse-error "Comma or end of ~A expected, found '~A'" obj-name next)))
       (funcall gather-func)
       (skip-whitespace stream)
       (if (eql (peek-char nil stream nil) #\,)
@@ -151,6 +136,9 @@
           (setf finished t)))))
 
 (defun read-json-list (stream)
+  "Read a JSON list from stream.
+Creates a list if *decode-lists-as* is :list (the default)
+and an array if *decode-lists-as* is :array."
   (declare #.*optimize*)
   (let ((accum ()))
     (gather-comma-separated stream #\] "list"
@@ -161,6 +149,10 @@
       (:array (make-array (length accum) :initial-contents (nreverse accum))))))
 
 (defun read-json-object (stream)
+  "Read a JSON object from stream.
+Creates an association list if *decode-objects-as* is :jso or :alist.
+Creates a hashtable if *decode-objects-as* is :hashtable.
+Note that many functions in functional-json don't work on :hashtable objects yet. "
   (declare #.*optimize*)
   (ecase *decode-objects-as*
     ((:jso :alist)
@@ -170,10 +162,10 @@
         (lambda ()
           (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
             (unless (or (stringp slot-name) (numberp slot-name))
-              (error 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+              (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
             (skip-whitespace stream)
             (when (not (eql (read-char stream nil) #\:))
-              (error 'json-parse-error "Colon expected after '~a'." slot-name))
+              (raise 'json-parse-error "Colon expected after '~a'." slot-name))
             (push (cons slot-name (read-json-element stream)) accum))))
        (if (eq *decode-objects-as* :jso)
            (make-jso :alist (nreverse accum))
@@ -185,23 +177,24 @@
          (lambda ()
            (let ((slot-name (let ((*reading-slot-name* t)) (read-json-element stream))))
              (unless (or (stringp slot-name) (numberp slot-name))
-               (error 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
+               (raise 'json-parse-error "Invalid slot name in object literal: ~A" slot-name))
              (skip-whitespace stream)
              (when (not (eql (read-char stream nil) #\:))
-               (error 'json-parse-error "Colon expected after '~a'." slot-name))
+               (raise 'json-parse-error "Colon expected after '~a'." slot-name))
              (setf (gethash slot-name accum) (read-json-element stream)))))
         accum))))
 
 (defun looks-like-a-number (string)
+  "Check if the content of string looks like an integer or floating point number."
   (declare #.*optimize*)
   (declare (type (or sequence (array character (*)) simple-string string)))
-  ;;xxlet ((string (coerce string 'simple-string)))
   (every (lambda (char)
            (or (digit-char-p char)
                (member char '(#\e #\E #\. #\- #\+))))
          string))
 
 (defun read-json-atom (stream)
+  "Read a number, true, false, null, or undefined from stream"
   (declare #.*optimize*
            (type stream stream))
   (let ((accum (make-array 0 :element-type 'character :fill-pointer 0 :adjustable t)))
@@ -224,33 +217,25 @@
                            (or (alphanumericp c) (eql c #\_) (eql c #\$)))
                          accum))
              accum)
-            (t (error 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
+            (t (raise 'json-parse-error "Unrecognized value in JSON data: ~A" accum))))))
 
 (defmethod read-json ((in stream) &optional (junk-allowed-p t))
+  "Read a JSON value from stream."
   (declare #.*optimize*)
   (let ((value (read-json-element in)))
     (skip-whitespace in)
     (unless (or junk-allowed-p (at-eof in))
-      (error 'json-parse-error "Unused characters at end of input."))
+      (raise 'json-parse-error "Unused characters at end of input."))
     value))
 
 (defmethod read-json ((in string) &optional (junk-allowed-p nil))
+  "Read a JSON value from a string."
   (declare #.*optimize*)
   (with-input-from-string (stream in)
     (read-json stream junk-allowed-p)))
 
 (defmethod read-json ((file-name pathname) &optional (junk-allowed-p nil))
-  "Open file-name and call read-json on the stream."
+  "Read JSON from a file."
   (declare #.*optimize*)
   (with-open-file (stream file-name :direction :input)
     (read-json stream junk-allowed-p)))
-
-
-(defun read-json-as-type (source type)
-  "Read a JSON value and assert the result to be of a given type.
-Raises a json-type-error when the type is wrong."
-  (declare #.*optimize*)
-  (let ((val (read-json source)))
-    (if (typep val type)
-        val
-        (error 'json-type-error "JSON input '~A' is not of expected type ~A." source type))))

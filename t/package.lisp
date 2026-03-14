@@ -148,15 +148,14 @@
     (is (= 5 (at obj :bar 1)))
     (is (= 3 (at obj :bar 2)))
     (is (= 4 (at obj :bar 3)))
-    (is (string= "//trouble" (at obj :strange)))
-    )
+    (is (string= "//trouble" (at obj :strange)))))
 
-  )
+;; Declare some JSON types for the next text.
+;; If these aren't at  the top-level then the compiler will warn about undefined functions at compile time,
+;; but the types will be defined correctly at runtime.  Declaring at the top level avoids the problem.
 
-(test typing
-  ;; Declare some JSON types
-  ;; An automobile has a manufacturer with a name and country, a model name, and
-  ;; an engine
+(eval-when
+    (:compile-toplevel :load-toplevel :execute)
   (fj:def-jso-type automobile
       ((:manufacturer :name)
        (:manufacturer :country)
@@ -169,15 +168,51 @@
   ;; An EV automobile has an engine with watts and volts
   (fj:def-jso-type ev-automobile
       ((:engine :watts)
-       (:engine :volts)))
+       (:engine :volts))))
 
+(test typing
   ;; Check JSON types using typecase
-  (defun what-is-it (car)
-    (typecase car
-      (ev-automobile "Electric car")
-      (ice-automobile "Combustion car")
-      (automobile "Just a car")))
+  (flet ((what-is-it (car)
+           (typecase car
+             (ev-automobile "Electric car")
+             (ice-automobile "Combustion car")
+             (automobile "Just a car"))))
 
+    (let ((bmw (fj:read-json "
+    {
+      \"manufacturer\": {
+         \"name\": \"BMW\",
+         \"country\": \"Germany\"
+      },
+      \"model\": \"M3\",
+      \"engine\": {
+         \"cylinder-count\": 6,
+         \"displacement\": 6.0
+      }
+    }"))
+          (tesla (fj:read-json "
+  {
+    \"manufacturer\": {
+       \"name\": \"Tesla\",
+       \"country\": \"usa\"
+    },
+    \"model\": \"Whatever\",
+    \"engine\": {
+       \"watts\": 6,
+       \"volts\": 120.0
+    }
+  }")))
+      (is (typep bmw 'automobile))
+      (is (typep bmw 'ice-automobile))
+      (is (not (typep bmw 'ev-automobile)))
+      (is (string=  "Combustion car" (what-is-it bmw)))
+      (is (typep tesla 'automobile))
+      (is (not (typep tesla 'ice-automobile)))
+      (is (typep tesla 'ev-automobile))
+      (is (string= "Electric car" (what-is-it tesla))))))
+
+
+(test indexing
   (let ((bmw (fj:read-json "
     {
       \"manufacturer\": {
@@ -202,11 +237,16 @@
        \"volts\": 120.0
     }
   }")))
-    (is (typep bmw 'automobile))
-    (is (typep bmw 'ice-automobile))
-    (is (not (typep bmw 'ev-automobile)))
-    (is (string=  "Combustion car" (what-is-it bmw)))
-    (is (typep tesla 'automobile))
-    (is (not (typep tesla 'ice-automobile)))
-    (is (typep tesla 'ev-automobile))
-    (is (string= "Electric car" (what-is-it tesla)))))
+    (is (string= "BMW" (fj:at bmw "manufacturer" "name")))
+    (is (string= "BMW" (fj:at bmw :manufacturer :name)))
+    (is (string= "BMW" (fj:at bmw "manufacturer" :name)))
+    (is (string= "BMW" (fj:at-list bmw '("manufacturer" :name))))
+    (is (= (funcall (fj:jsoλ :engine :watts) tesla) 6))
+    (is (= 120.0 (fj:getjso* "engine.volts" tesla)))
+    ))
+
+
+(test unicode
+  (let ((result (fj:read-json "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E\"")))
+    (is (string= result "In JSON, 𝄞 can be encoded/escaped like this: 𝄞")))
+  )

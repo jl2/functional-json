@@ -4,12 +4,60 @@
 ;; TODO: maybe permanently and allow user to set at load time
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *optimize*
-    '(optimize (speed 3) (safety 1) (space 0) (debug 1) (compilation-speed 0))))
+    '(optimize (speed 3) (safety 1) (space 0) (debug 1) (compilation-speed 0)))
+  (defparameter *fail-on-extra-keys* nil
+    "If non-nil then v, vλ, and related functions will fail if there are extra
+ keys when it gets to a non-jso object.  Otherwise the remaining keys are return
+ in a list.")
+
+  (defparameter *decode-objects-as* :jso
+    "Valid values: :jso :hashtable
+  Controls how js objects should be decoded. :jso means decode to internal struct which
+  can be processed by getjso, mapjso etc. :hashtable means decode as hash tables.")
+
+  (defparameter *decode-lists-as* :list
+    "Valid values: :list :array
+  Controls how js arrays should be decoded.
+  :list means decode into a list.
+  :array means decode into an array")
+
+  (defparameter *allow-comments* nil
+    "Non-nil means ignore C++ style // comments when parsing.")
+
+
+  (defvar *reading-slot-name* nil
+    "Used by read-json-atom to determine whether it should treat bare words as atoms or errors.
+It is set to t by read-json-object in order to read bareword object keys such
+ as { foo: 42} (as opposed to { \"foo\": 42 }) ")
+  )
+
+
+
+
+(define-condition json-error (simple-error) ()
+  (:documentation "Generic JSON error."))
+(define-condition json-index-error (json-error) ()
+  (:documentation "Error condition raised when a function tries to reference too deeply into a JSON object."))
+(define-condition json-parse-error (json-error) ()
+  (:documentation "Unexpected or invalid syntax while parsing JSON."))
+(define-condition json-eof-error (json-parse-error) ()
+  (:documentation "Unexpected end of input when parsing JSON."))
+(define-condition json-write-error (json-error) ()
+  (:documentation "write-json-element called on an unsupported type.  Implement json-write-error for the type to fix."))
+(define-condition json-type-error (json-error) ()
+  (:documentation "Raised by read-json-as-type if the read JSON doesn't conform to the specified type."))
+
+(defun raise (type format &rest args)
+  "Convenience wrapper around error."
+  (error type :format-control format :format-arguments args))
 
 
 ;; Types that might be useful when checking the type of input.
-(deftype json-bool () '(member :true :false))
-(deftype json-null () '(eql :null))
+(deftype json-bool () '(member :true :false)
+  "A Common Lisp representation of a JSON boolean value.")
+
+(deftype json-null () '(eql :null)
+  "A Common Lisp representation of a JSON null value.  This is :null, different than nil the empty list [].")
 
 ;; These are used to represent JS objects on the Lisp side -- hash
 ;; tables are too heavyweight on some implementations.
@@ -25,31 +73,55 @@
                  make-jso))
 
 (defun key-to-string (key)
-  "Strings stay the same, but symbols are converted to to lower case strings"
+  "Return strings as they are but convert symbols and keywords to lower case strings.
+\"foo\" -> \"foo\"
+:foo -> \"foo\"
+'foo -> \"foo\""
   (declare #.*optimize*)
   (typecase key
     (string key)
     (symbol (string-downcase (symbol-name key)))
     (t key)))
 
-(defmacro key-to-string-m (key)
-  "Strings stay the same, but symbols are converted to to lower case strings"
-  `(typecase ,key
-    (string ,key)
-    (symbol (string-downcase (symbol-name ,key)))
-    (t ,key)))
-
-(defun jso (&rest fields)
-  "Create a JS object. Arguments should be alternating labels and values."
-  (declare #.*optimize*)
-  (make-jso :alist (loop :for (key val) :on fields :by #'cddr
-                         :collect (cons key val))))
-
 (defun o (&rest fields)
-  "Create a JS object. Arguments should be alternating labels and values. "
+  "Create a JSON object using symbols. Arguments should be alternating keys (strings or symbols) and values.  Like @'jso but calls #'key-to-string on the keys.
+This is the preferred way to create JSON objects:
+(o :foo 32
+   :bar 16
+   :nested (o \"omg\" (o :key 42)
+              :key 23)) ->
+{
+  \"foo\": 32,
+  \"bar\": 16,
+  \"nested\": {
+    \"omg\": {
+      \"key\": 42
+    },
+    \"key\": 23
+  }
+}"
   (declare #.*optimize*)
   (make-jso :alist (loop :for (key val) :on fields :by #'cddr
                          :collect (cons (key-to-string key) val))))
+
+
+(defmacro key-to-string-m (key)
+  "A macro version of key-to-string.
+Return strings as they are but convert symbols and keywords to lower case strings.
+\"foo\" -> \"foo\"
+:foo -> \"foo\"
+'foo -> \"foo\""
+  (declare #.*optimize*)
+  `(typecase ,key
+     (string ,key)
+     (symbol (string-downcase (symbol-name ,key)))
+     (t ,key)))
+
+(defun jso (&rest fields)
+  "Create a JSON object. Arguments should be alternating labels and values."
+  (declare #.*optimize*)
+  (make-jso :alist (loop :for (key val) :on fields :by #'cddr
+                         :collect (cons key val))))
 
 ;; Boolean types. It is hard to see what is meant by NIL when encoding
 ;; a lisp value -- false or [] -- so :false and :true are used instead
@@ -100,12 +172,14 @@ Like mapjso, but collects the values returned by func."
   (loop :for (key . val) :in (jso-alist obj)
         :collect (funcall func key val)))
 
-;; (fj:getjso* "foo.bar" (fj:o :foo (fj:o :bar 32 :baz 2) :bar 1))
-(defmacro getjso* (keys jso)
-  "Like getjso, but splits keys on #\. to recursively access nested objects."
-  (let ((split (loop
-                 :for idx = 0 :then (1+ next-dot)
-                 :for next-dot = (position #\. keys :start (1+ idx))
-                 :collecting (subseq keys idx next-dot)
-                 :while next-dot)))
-    `(at* ,jso ,@split)))
+(defmacro getjso* (key-str jso)
+  "Parse a sequence of . separated keys out of key-str and expand into nested calls to getjso.
+(getjso* \"foo.bar\" obj) -> (getjso \"bar\" (getjso \"foo\" jso))"
+  (declare #.*optimize*
+           (type string key-str)
+           (type symbol jso))
+  (let ((last (position #\. key-str :from-end t)))
+    (if last
+        `(getjso ,(subseq key-str (1+ last))
+                 (getjso* ,(subseq key-str 0 last) ,jso))
+        `(getjso ,key-str ,jso))))
