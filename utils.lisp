@@ -100,10 +100,9 @@ not supported, only string and symbol keys are supported."
   "(make-nested-object 42 '(:foo :bar :wat)) -> { foo: { bar: { wat: 42 } } }"
   (declare #.*optimize*)
   (loop
-    :for json = value :then (jso key-string json)
+    :for json = value :then (jso (key-to-string key) json)
     :for key :in (reverse keys)
     :while key
-    :for key-string = (key-to-string key)
     :finally (return json)))
 
 

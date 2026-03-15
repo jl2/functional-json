@@ -124,9 +124,9 @@
 Artificial limit of 1000000 levels deep."
   (declare #.*optimize*)
   ;; Dare I say JSON nesting more than 8192 levels is enough for anybody?
-  (declare (type (integer 0 1000000) depth *pretty-print-indent-size*))
+  (declare (type (integer 0 1000000) depth))
   (* (max 0 depth)
-     *pretty-print-indent-size*))
+     (coerce  *pretty-print-indent-size* '(integer 0 100))))
 
 (defparameter *whitespace-cache* (make-hash-table :size 32)
   "Cache indentation whitespace strings so they don't need to be recreated.")

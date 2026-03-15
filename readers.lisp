@@ -54,9 +54,7 @@ JSON data."
                      (#\b #\backspace) (#\n #\newline) (#\r #\return)
                      (#\t #\tab) (#\f #\page) (t escaped)))
                  char))
-           (read-unicode ()
-             ;; refer to ECMA-404, strings.
-             (flet ((read-code-point ()
+           (read-code-point ()
                       (the fixnum
                            (loop :for pos :of-type fixnum :from 0 :below 4
                                  :for weight :of-type fixnum := #.(expt 16 3) :then (ash weight -4)
@@ -64,27 +62,29 @@ JSON data."
                                  :do (unless digit (raise 'json-parse-error "Invalid unicode constant in string."))
                                  :sum (* digit weight) :into total :of-type fixnum
                                  :finally (return total))))
-                    (expect-char (char)
+           (expect-char (char)
                       (let ((c (read-char stream)))
                         (assert (char= char c) (c)
-                                "Expecting ~c, found ~c instead." char c))))
-               (let ((code-point (read-code-point)))
-                 (code-char
-                  (if (<= #xD800 code-point #xDBFF)
-                      (let ((utf-16-high-surrogate-pair code-point))
-                        (expect-char #\\)
-                        (expect-char #\u)
-                        (let ((utf-16-low-surrogate-pair (read-code-point)))
-                          (declare (type fixnum utf-16-low-surrogate-pair))
-                          (assert (<= #xDC00 utf-16-low-surrogate-pair #xDFFF)
-                                  (utf-16-low-surrogate-pair)
-                                  "Unexpected UTF-16 surrogate pair: ~a and ~a."
-                                  utf-16-high-surrogate-pair
-                                  utf-16-low-surrogate-pair)
-                          (+ #x010000
-                             (ash (- utf-16-high-surrogate-pair #xD800) 10)
-                             (- utf-16-low-surrogate-pair #xDC00))))
-                      code-point))))))
+                                "Expecting ~c, found ~c instead." char c)))
+           (read-unicode ()
+             ;; refer to ECMA-404, strings.
+             (let ((code-point (read-code-point)))
+               (code-char
+                (if (<= #xD800 code-point #xDBFF)
+                    (let ((utf-16-high-surrogate-pair code-point))
+                      (expect-char #\\)
+                      (expect-char #\u)
+                      (let ((utf-16-low-surrogate-pair (read-code-point)))
+                        (declare (type fixnum utf-16-low-surrogate-pair))
+                        (assert (<= #xDC00 utf-16-low-surrogate-pair #xDFFF)
+                                (utf-16-low-surrogate-pair)
+                                "Unexpected UTF-16 surrogate pair: ~a and ~a."
+                                utf-16-high-surrogate-pair
+                                utf-16-low-surrogate-pair)
+                        (+ #x010000
+                           (ash (- utf-16-high-surrogate-pair #xD800) 10)
+                           (- utf-16-low-surrogate-pair #xDC00))))
+                    code-point)))))
     (with-output-to-string (out)
       (handler-case
           (loop :with quote :of-type character := (read-char stream)

@@ -12,6 +12,7 @@
 (in-suite :functional-json)
 
 (test collect
+  ;; Test running a function on key/values and collecting to a list
   (let ((obj1 (fj:jso "foo" 42 "bar" 32))
         (obj2 (fj:jso "foo" 42))
         (obj3 (fj:jso)))
@@ -21,6 +22,7 @@
 
 
 (test jso-keys
+  ;; Test getting JSON keys
   (let ((obj1 (fj:o "foo" 42 "bar" 32))
         (obj2 (fj:o :foo 42))
         (obj3 (fj:jso)))
@@ -29,6 +31,7 @@
     (is (equal '() (fj:jso-keys obj3)))))
 
 (test jso-values
+  ;; Test getting JSON values
   (let ((obj1 (fj:jso "foo" 42 "bar" 32))
         (obj2 (fj:jso "foo" 42))
         (obj3 (fj:jso)))
@@ -37,6 +40,7 @@
     (is (equal '() (fj:jso-values obj3)))))
 
 (test key-count
+  ;; Test key counting
   (is (= 2 (fj:key-count (fj:jso "foo" 42 "bar" 32))))
   (is (= 1 (fj:key-count (fj:jso "foo" (fj:jso "bar" 32
                                               "baz" 12)))))
@@ -45,6 +49,7 @@
                                 "bar" 34
                                 "baz" :false)))))
 (test jsoλ
+  ;; Test creating an accessor function
   (let ((func (jsoλ "foo"))
         (obj1 (fj:jso "foo" 42 "bar" 32))
         (obj2 (fj:jso "foo" 42)))
@@ -52,6 +57,7 @@
     (is (= 42 (funcall func obj2)))))
 
 (test with-keys
+  ;; Test accessing values using with-keys
   (let ((obj (fj:o :foo 34
                    :bar (fj:o :wat 12
                               :second 4)
@@ -63,8 +69,8 @@
                    (b :third :b)
                    (c "third" "c")
                    (w "bar" :wat)) obj
-        (is (= (+ f a b c  w)
-               (+ 1 2 3 12 34))))
+      (is (= (+ f a b c  w)
+             (+ 1 2 3 12 34))))
     (fj:with-keys ((f :foo)
                    (a :third :a)) obj
       (rotatef a f))
@@ -76,6 +82,7 @@
     (is (= (fj:at obj :third :a) 1))))
 
 (test print-json-element
+  ;; Basic pretty printing tests
   (let ((fj::*print-object-style* :pretty)
         (obj1 (fj:jso "foo" 42 "bar" 32))
         (obj2 (fj:jso "foo" 42))
@@ -112,6 +119,7 @@
     ))
 
 (test array-reading
+  ;; Test reading  lists into vectors
   (let* ((fj:*decode-lists-as* :array)
          (array (fj:read-json "[3,4,5,4]")))
     (is (typep array '(simple-vector 4)))
@@ -121,6 +129,7 @@
              (is (= val (aref array i))))))
 
 (test comments
+  ;; Test that the reader skips comments
   (let* ((fj:*allow-comments* t)
          (obj (fj:read-json "{ // testing
 \"foo\": 34, \"what\": // skip it
@@ -171,13 +180,15 @@
        (:engine :volts))))
 
 (test typing
-  ;; Check JSON types using typecase
+  
   (flet ((what-is-it (car)
+           ;; Check JSON types using typecase
            (typecase car
              (ev-automobile "Electric car")
              (ice-automobile "Combustion car")
              (automobile "Just a car"))))
 
+    ;; Check JSON types using typep
     (let ((bmw (fj:read-json "
     {
       \"manufacturer\": {
@@ -247,6 +258,12 @@
 
 
 (test unicode
-  (let ((result (fj:read-json "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E\"")))
-    (is (string= result "In JSON, 𝄞 can be encoded/escaped like this: 𝄞")))
+  (let ((obj (fj:o :foo (fj:read-json "\"15\\u00b0C\""))))
+    (string= (fj:at obj :foo) "15°C"))
+
+  ;; TODO: Why does this fail on ABCL?
+  (let* ((expected-string "In JSON, 𝄞 can be encoded/escaped like this: 𝄞")
+         (json-string "\"In JSON, 𝄞 can be encoded/escaped like this: \\uD834\\uDD1E\"")
+         (result (fj:read-json json-string)))
+    (is (string= result expected-string)))
   )
