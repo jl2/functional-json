@@ -1,10 +1,7 @@
 (in-package :cl-user)
 
 (defpackage :functional-json.test
-  (:use :cl
-   :fiveam
-        :alexandria
-   :functional-json))
+  (:use :cl :fiveam :alexandria :functional-json))
 
 (in-package :functional-json.test)
 
