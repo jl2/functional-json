@@ -3,8 +3,10 @@
 ;; Disabled while debugging
 ;; TODO: maybe permanently and allow user to set at load time
 (eval-when (:compile-toplevel :load-toplevel :execute)
+
   (defparameter *optimize*
-    '(optimize (speed 3) (safety 1) (space 0) (debug 1) (compilation-speed 0)))
+    '(optimize (speed 3) (safety 0) (space 0) (debug 0) (compilation-speed 0)))
+
   (defparameter *fail-on-extra-keys* nil
     "If non-nil then v, vλ, and related functions will fail if there are extra
  keys when it gets to a non-jso object.  Otherwise the remaining keys are return
@@ -36,16 +38,22 @@ It is set to t by read-json-object in order to read bareword object keys such
 
 (define-condition json-error (simple-error) ()
   (:documentation "Generic JSON error."))
+
 (define-condition json-index-error (json-error) ()
   (:documentation "Error condition raised when a function tries to reference too deeply into a JSON object."))
+
 (define-condition json-parse-error (json-error) ()
   (:documentation "Unexpected or invalid syntax while parsing JSON."))
+
 (define-condition json-eof-error (json-parse-error) ()
   (:documentation "Unexpected end of input when parsing JSON."))
+
 (define-condition json-write-error (json-error) ()
   (:documentation "write-json-element called on an unsupported type.  Implement json-write-error for the type to fix."))
+
 (define-condition json-type-error (json-error) ()
   (:documentation "Raised by read-json-as-type if the read JSON doesn't conform to the specified type."))
+
 
 (defun raise (type format &rest args)
   "Convenience wrapper around error."
@@ -101,8 +109,10 @@ This is the preferred way to create JSON objects:
   }
 }"
   (declare #.*optimize*)
-  (make-jso :alist (loop :for (key val) :on fields :by #'cddr
-                         :collect (cons (key-to-string key) val))))
+  (make-jso
+   :alist (loop
+            :for (key val) :on fields :by #'cddr
+            :collect (cons (key-to-string key) val))))
 
 
 (defmacro key-to-string-m (key)
