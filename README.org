@@ -3,70 +3,140 @@
 This is a fork of [[https://marijnhaverbeke.nl/st-json/][ST-JSON]] with extra utilities to streamline
 JSON processing and work with JSON from the REPL.
 
-This fork aims to be backwards compatible with ST-JSON.
+This fork aims to be backwards compatible with ST-JSON.  Using src_lisp[:exports code]{(use-package :functional-json)}
+will work as a drop in replacement for src_lisp[:exports code]{(use-package :st-json)}.
 
 * Basic Usage
+
+Following are some examples of using functional-json to process JSON.  To run the examples first requires loading the required packages:
+
+#+BEGIN_SRC lisp
+  (ql:quickload '(:functional-json ;; The library itself
+                  :dexador         ;; HTTP and HTTPS fetching
+                  :alexandria      ;; Utilities (for compose)
+                  ))
+  (use-package :alexandria)
+#+END_SRC
+
 
 ** Load JSON data using `fj:read-json` and `fj:with-keys` to access fields.
 
 Field names can be "strings", :keywords, or 'symbols.
 
-#+BEGIN_SRC lisp
-  (ql:quickload '(:functional-json :dexador :alexandria))
-  (use-package :alexandria)
-
-#+END_SRC
-
 
 #+BEGIN_SRC lisp :results output
-  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
-         (json-list (fj:read-json (dex:get url)))
-         (sorted-list (sort json-list #'< :key (fj:jsoλ :size)))
-         (total-size 0))
 
-    (loop :for json :in sorted-list :do
-      (fj:with-keys ((name :name)
-                     (size "size")
-                     (type 'type)) json
-        (incf total-size size)
-        (format t "~a ~s, ~a bytes~%" type name size)))
-    (format t "Total: ~a~%" total-size))
+  (loop
+    :with url = "https://api.github.com/repos/jl2/functional-json/contents/"
+    :with json-list = (fj:read-json (dex:get url))
+
+    ;; This is the sum computed using with-keys acessors
+    :with total-size = 0
+
+    :for json :in (sort json-list #'< :key (fj:jsoλ :size))
+
+    ;; Sum using at accessor
+    :summing (fj:at json :size) :into total-size-from-loop
+
+    :do
+       ;; Inside with-keys, 'name references the "name" field of json, 'size references the "size" field,
+       ;; and 'type references the "type" field.  Symbols and keywords are mapped to lower case strings
+       ;; of the same name - :id maps to the field with name "id", etc. so that name2 and name3 are equivalent to name
+       ;; Note that these are places, meaning the values are settable with (setf)
+       (fj:with-keys ((name :name)    ;; The name field as keyword
+                      (name2 "name")  ;; The name field as string
+                      (name3 'name)   ;; The name field as symbol
+                      (size "size")
+                      (type 'type)) json
+         (incf total-size size)
+         (format t "~a ~s, ~a bytes - also known as ~a and ~a~%" type name size name2 name3))
+    :finally
+       (progn
+         (format t "Total size using with-keys: ~a~%" total-size)
+         (format t "Total size using at: ~a~%" total-size-from-loop)))
+
 #+END_SRC
-
 
 ** Use `fj:jsoλ` to create access functions.
 
 #+BEGIN_SRC lisp :results output
   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
          (json-list (fj:read-json (dex:get url)))
+
+         ;; fj:jsoλ creates a function that, when called on a JSON object returns the value stored there.
+         ;; In this case, html-link is a function that, when called on a JSON object, fetchs the "_links" entry, and then fetchs the "html" entry from it.
          (html-link (fj:jsoλ :_links :html)))
 
-    ;; Print all HTML links
-    (mapc (compose #'print html-link) json-list)))
+    ;; Print the html-link of every object in json-list
+    (mapc (compose #'print html-link) json-list))
 #+END_SRC
+
+#+RESULTS:
+#+begin_example
+
+"https://github.com/jl2/functional-json/blob/master/.gitignore"
+"https://github.com/jl2/functional-json/blob/master/LICENSE"
+"https://github.com/jl2/functional-json/blob/master/Makefile"
+"https://github.com/jl2/functional-json/blob/master/README.org"
+"https://github.com/jl2/functional-json/blob/master/functional-json.asd"
+"https://github.com/jl2/functional-json/blob/master/functional-json.lisp"
+"https://github.com/jl2/functional-json/blob/master/functional-json.test.asd"
+"https://github.com/jl2/functional-json/blob/master/package.lisp"
+"https://github.com/jl2/functional-json/blob/master/readers.lisp"
+"https://github.com/jl2/functional-json/tree/master/t"
+"https://github.com/jl2/functional-json/blob/master/utils.lisp"
+"https://github.com/jl2/functional-json/blob/master/writers.lisp"
+#+end_example
 
 
 ** Use `fj:at` to access fields.
 
 #+BEGIN_SRC lisp :results output
-   (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
-          (json-list (fj:read-json (dex:get url :want-stream t)))
-          (json (fj:at json-list 1)))
+  (let* ((url "https://api.github.com/repos/jl2/functional-json/contents/")
+         (json-list (fj:read-json (dex:get url :want-stream t)))
+         (json (fj:at json-list 1)))
 
 
-     ;; Index into arrays and lists using integers, into
-     ;; objects using strings, symbols, or keywords
-     (format t "First: ~a~%" (fj:at json-list 1 :_links))
+    ;; Index into arrays and lists using integers, into
+    ;; objects using strings, symbols, or keywords
+    ;; Print the _links sub-component from the first entry.
+    (format t "First: ~a~%" (fj:at json-list 1 :_links))
 
-     ;; Swap fields and make modifications
-     ;; (setf at) doesn't support array/list indexing
-     (rotatef (fj:at json :_links 'git)
-              (fj:at json :_links "self") )
-     (format t "Swapped: ~a~%" (fj:at json :_links))
+    ;; Swap fields and make modifications
+    ;; Object references are places and can be modified using setf and
+    ;; related functions like rotatef
+    (rotatef (fj:at json :_links 'git)
+             (fj:at json :_links "self") )
+    (format t "Swapped: ~a~%" (fj:at json :_links))
 
-     (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
-     (format t "Swapped back: ~a~%" (fj:at json-list 1 :_links)))
+    ;; (setf at) doesn't support array/list indexing
+    ;; so the following commented lines would *fail* with an error condition
+    ;;(rotatef (fj:at json-list 0 :_links 'git)
+    ;;         (fj:at json-list 0 :_links "self") )
+    ;;(format t "Swapped: ~a~%" (fj:at json-list 0 :_links))
+
+    (rotatef (fj:at json :_links :git) (fj:at json :_links :self) )
+    (format t "Swapped back: ~a~%" (fj:at json-list 1 :_links)))
 #+END_SRC
+
+#+RESULTS:
+#+begin_example
+First: {
+    "self": "https://api.github.com/repos/jl2/functional-json/contents/LICENSE?ref=master",
+    "git": "https://api.github.com/repos/jl2/functional-json/git/blobs/c38463ccce58b4a1b971dec1b900e00187f791ec",
+    "html": "https://github.com/jl2/functional-json/blob/master/LICENSE"
+}
+Swapped: {
+    "self": "https://api.github.com/repos/jl2/functional-json/git/blobs/c38463ccce58b4a1b971dec1b900e00187f791ec",
+    "git": "https://api.github.com/repos/jl2/functional-json/contents/LICENSE?ref=master",
+    "html": "https://github.com/jl2/functional-json/blob/master/LICENSE"
+}
+Swapped back: {
+    "self": "https://api.github.com/repos/jl2/functional-json/contents/LICENSE?ref=master",
+    "git": "https://api.github.com/repos/jl2/functional-json/git/blobs/c38463ccce58b4a1b971dec1b900e00187f791ec",
+    "html": "https://github.com/jl2/functional-json/blob/master/LICENSE"
+}
+#+end_example
 
 
 
