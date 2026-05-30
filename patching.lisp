@@ -28,6 +28,8 @@ Converts a string of the form \"/key1/key2/key3\" into the list (\"key1\" \"key2
   `(("test"
      .
      ,(lambda (obj args)
+        (declare (type jso obj)
+                 (type patch-test-op args))
         (with-keys ((path :path)
                     (value :value)) args
           (values (json-equal (at-list obj (parse-patch-path path))
