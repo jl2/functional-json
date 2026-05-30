@@ -5,7 +5,7 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
 
   (defparameter *optimize*
-    '(optimize (speed 3) (safety 0) (space 0) (debug 0) (compilation-speed 0)))
+    '(optimize (speed 3) (safety 0) (space 1) (debug 0) (compilation-speed 0)))
 
   (defparameter *fail-on-extra-keys* nil
     "If non-nil then v, vλ, and related functions will fail if there are extra

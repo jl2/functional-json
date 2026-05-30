@@ -9,7 +9,7 @@
   :license "BSD"
 
   :serial t
-  ;;:depends-on (:trivial-gray-streams)
+  :depends-on (:alexandria)
 
   :components ((:file "package")
                (:file "functional-json")

@@ -14,7 +14,7 @@
 ;; OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 (defpackage :functional-json
-  (:use :common-lisp)
+  (:use :common-lisp :alexandria)
   (:nicknames :fj)
   (:export #:o
          #:jso
@@ -30,6 +30,10 @@
          #:at
          #:at*
          #:at-list
+
+         #:del
+         #:del-list
+
          #:atλ
          #:atλ*
          #:with-keys
@@ -61,6 +65,12 @@
          #:json-parse-error
          #:json-type-error
 
+         #:apply-patch
+         #:parse-patch-path
+         #:create-custom-op
+         #:*ops*
+         #:json-equal
+         #:deep-copy
 
          #:as-json-bool
          #:from-json-bool
@@ -89,4 +99,5 @@
          #:*pretty-print-indent-size*
          #:*print-object-style*
          #:*script-tag-hack*
+
          ))

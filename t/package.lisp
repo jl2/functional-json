@@ -177,7 +177,7 @@
        (:engine :volts))))
 
 (test typing
-  
+
   (flet ((what-is-it (car)
            ;; Check JSON types using typecase
            (typecase car
@@ -264,3 +264,60 @@
          (result (fj:read-json json-string)))
     (is (string= result expected-string)))
   )
+
+(test patches
+  (let ((obj (fj:o :foo 42
+                   :bar 14
+                   :omg '(1 2 3)))
+        (add-13 (list
+                 (fj:o :op "add" :path "/baz" :value 13)))
+        (expected-add-13 (fj:o :foo 42
+                               :bar 14
+                               :omg '(1 2 3)
+                               :baz 13))
+        (bad-add-13 (list
+                     (fj:o :op "add" :path "/baz" :value 13)
+                     (fj:o :op "test" :path "/baz" :value 14)))
+        (copy-bar (list
+                   (fj:o :op "copy" :from "/foo" :path "/rar")
+                   (fj:o :op "copy" :from "/omg" :path "/zoo")))
+        (expected-copy-bar (fj:o :foo 42
+                                 :bar 14
+                                 :omg '(1 2 3)
+                                 :zoo '(1 2 3)
+                                 :rar 42))
+        (rm-bar (list (fj:o :op "remove" :path "/bar")))
+        (expected-rm-bar (fj:o :foo 42
+                               :omg '(1 2 3)))
+        (mv-omg-bar (list (fj:o :op "move" :from "/bar" :path "/zoo")
+                          (fj:o :op "move" :from "/omg" :path "/bar")))
+        (expected-mv-omg-bar (fj:o :foo 42
+                                   :zoo 14
+                                   :bar '(1 2 3)))
+        (replace-omg (list
+                      (fj:o :op "replace" :path "/omg"
+                            :value (fj:o :deeper "nesting"
+                                         :of 42))))
+        (expected-replace-omg (fj:o :foo 42
+                                    :bar 14
+                                    :omg (fj:o :deeper "nesting"
+                                               :of 42)))
+        (bad-ops (list
+                      (fj:o :op "add" :path "/omg"
+                            :no-value (fj:o :deeper "nesting"
+                                            :of 42)))))
+    (is (fj:json-equal (fj:apply-patch obj add-13)
+                       expected-add-13))
+    (is (fj:json-equal (fj:apply-patch obj bad-add-13)
+                       obj))
+    (is (fj:json-equal (fj:apply-patch obj copy-bar)
+                       expected-copy-bar))
+    (is (fj:json-equal (fj:apply-patch obj rm-bar)
+                       expected-rm-bar))
+    (is (fj:json-equal (fj:apply-patch obj mv-omg-bar)
+                       expected-mv-omg-bar))
+    (is (fj:json-equal (fj:apply-patch obj replace-omg)
+                       expected-replace-omg))
+    (is (fj:json-equal (fj:apply-patch obj replace-omg)
+                       expected-replace-omg))
+    (signals type-error (fj:apply-patch obj bad-ops))))
