@@ -2,7 +2,7 @@
 
 ;; RFC6902 JSON Patch operations
 
-
+(declaim (inline parse-patch-path))
 (defun parse-patch-path (path)
   "Parse JSON PATCH paths out of strings and into lists of keys suitable for #'at-list.
 Converts a string of the form \"/key1/key2/key3\" into the list (\"key1\" \"key2\" \"key3\")"
@@ -17,6 +17,9 @@ Converts a string of the form \"/key1/key2/key3\" into the list (\"key1\" \"key2
     :by #'cdr
     :collecting (subseq path (1+ start) end)))
 
+;; The built-in ops type check that their first argument (called jso) is a jso and
+;; second argument (called args) is the appropriate type defined here
+;; It's not required for custom ops to define an op type, but it helps debugging to get the type errors
 (def-jso-type patch-test-op (:op :path :value))
 (def-jso-type patch-add-op (:op :path :value))
 (def-jso-type patch-replace-op (:op :path :value))
@@ -24,83 +27,72 @@ Converts a string of the form \"/key1/key2/key3\" into the list (\"key1\" \"key2
 (def-jso-type patch-copy-op (:op :path :from))
 (def-jso-type patch-remove-op (:op :path))
 
+
 (defparameter *ops*
-  `(("test"
-     .
-     ,(lambda (obj args)
-        (declare (type jso obj)
-                 (type patch-test-op args))
-        (with-keys ((path :path)
-                    (value :value)) args
-          (values (json-equal (at-list obj (parse-patch-path path))
-                              value)
-                  obj))
-        ))
-    ("remove"
-     .
-     ,(lambda (obj args)
-        (declare (type jso obj)
-                 (type patch-remove-op args))
-        (with-keys ((path :path)) args
-          (del-list obj (parse-patch-path path))
-          (values t obj))))
+  `(("test" . ,(lambda (obj args)
+                 (declare (type jso obj)
+                          (type patch-test-op args))
+                 (with-keys ((path :path)
+                             (value :value)) args
+                   (values (json-equal (at-list obj (parse-patch-path path))
+                                       value)
+                           obj))))
 
-    ("add"
-     .
-     ,(lambda (obj args)
-        (declare (type jso obj)
-                 (type patch-add-op args))
-        (with-keys ((path :path)
-                    (value :value)) args
-          (setf (at-list obj (parse-patch-path path)) value)
-          (values t obj))))
+    ("remove" . ,(lambda (obj args)
+                   (declare (type jso obj)
+                            (type patch-remove-op args))
+                   (with-keys ((path :path)) args
+                     (del-list obj (parse-patch-path path))
+                     (values t obj))))
 
-    ("replace"
-     .
-     ,(lambda (obj args)
-        (declare (type jso obj)
-                 (type patch-replace-op args))
-        (let* ((path (at args :path))
-               (new-value (at args :value))
-               (pp (parse-patch-path path)))
-          (multiple-value-bind (value existed) (at-list obj pp)
-            (declare (ignorable value))
-            (cond ((not existed)
-                   (values nil obj))
-                  (t
-                   (setf (at-list obj pp) new-value)
-                   (values t obj)))))))
+    ("add" . ,(lambda (obj args)
+                (declare (type jso obj)
+                         (type patch-add-op args))
+                (with-keys ((path :path)
+                            (value :value)) args
+                  (setf (at-list obj (parse-patch-path path)) value)
+                  (values t obj))))
 
-    ("move"
-     .
-     ,(lambda (obj args)
-        (declare (type jso obj)
-                 (type patch-move-op args))
-        (let ((path (parse-patch-path (at args :path)))
-              (from (parse-patch-path (at args :from))))
+    ("replace" . ,(lambda (obj args)
+                    (declare (type jso obj)
+                             (type patch-replace-op args))
+                    (let* ((path (at args :path))
+                           (new-value (at args :value))
+                           (pp (parse-patch-path path)))
+                      (multiple-value-bind (value existed) (at-list obj pp)
+                        (declare (ignorable value))
+                        (cond ((not existed)
+                               (values nil obj))
+                              (t
+                               (setf (at-list obj pp) new-value)
+                               (values t obj)))))))
 
-          (multiple-value-bind (value existed) (at-list obj from)
-            (cond ((not existed)
-                   (values nil obj))
-                  (t
-                   (setf (at-list obj path) value)
-                   (del-list obj from)
-                   (values t obj)))))))
+    ("move" . ,(lambda (obj args)
+                 (declare (type jso obj)
+                          (type patch-move-op args))
+                 (let ((path (parse-patch-path (at args :path)))
+                       (from (parse-patch-path (at args :from))))
 
-    ("copy"
-     .
-     ,(lambda (obj args)
-        (declare (type jso obj)
-                 (type patch-copy-op args))
-        (let* ((path (parse-patch-path (at args :path)))
-               (from (parse-patch-path (at args :from))))
-          (multiple-value-bind (value existed) (at-list obj from)
-            (cond ((not existed)
-                   (values nil obj))
-                  (t
-                   (setf (at-list obj path)
-                         (deep-copy  value))
-                   (values t obj))))))))
+                   (multiple-value-bind (value existed) (at-list obj from)
+                     (cond ((not existed)
+                            (values nil obj))
+                           (t
+                            (setf (at-list obj path) value)
+                            (del-list obj from)
+                            (values t obj)))))))
+
+    ("copy" . ,(lambda (obj args)
+                 (declare (type jso obj)
+                          (type patch-copy-op args))
+                 (let* ((path (parse-patch-path (at args :path)))
+                        (from (parse-patch-path (at args :from))))
+                   (multiple-value-bind (value existed) (at-list obj from)
+                     (cond ((not existed)
+                            (values nil obj))
+                           (t
+                            (setf (at-list obj path)
+                                  (deep-copy  value))
+                            (values t obj))))))))
 
   "This is an association list of operations that are supported in the 'op' field of PATCH objects.
 The entries are of the form (name . function) where name is the op's name as a string and the function

@@ -305,7 +305,8 @@
         (bad-ops (list
                       (fj:o :op "add" :path "/omg"
                             :no-value (fj:o :deeper "nesting"
-                                            :of 42)))))
+                                            :of 42))))
+        (rm-non-existent (fj:o :op "remove" :path "/notThere")))
     (is (fj:json-equal (fj:apply-patch obj add-13)
                        expected-add-13))
     (is (fj:json-equal (fj:apply-patch obj bad-add-13)
@@ -320,4 +321,6 @@
                        expected-replace-omg))
     (is (fj:json-equal (fj:apply-patch obj replace-omg)
                        expected-replace-omg))
-    (signals type-error (fj:apply-patch obj bad-ops))))
+    (signals type-error (fj:apply-patch obj bad-ops))
+    (is (fj:json-equal (fj:apply-patch obj rm-non-existent)
+                       obj))))
